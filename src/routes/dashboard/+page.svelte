@@ -13,7 +13,7 @@
 	{:else if profile.role === 'creator'}
 		<p class="muted">Signed in as {profile.display_name}</p>
 
-		{#if data.pendingListingIds?.length}
+		{#if data.pendingListingIds?.length || data.pendingOfferListingIds?.length || data.pendingGrantListingIds?.length}
 			<div class="section-title">Needs your attention</div>
 			<div class="grid">
 				{#each data.listings.filter((l: any) => data.pendingListingIds.includes(l.id)) as l (l.id)}
@@ -25,6 +25,28 @@
 						<strong>{l.content_type} on {l.platform}</strong>
 						<div class="muted" style="font-size:13px; margin-top:4px;">{l.availability_window}</div>
 						<div class="muted" style="font-size:13px; margin-top:6px;">Reservation awaiting your price confirmation</div>
+					</a>
+				{/each}
+				{#each data.listings.filter((l: any) => data.pendingOfferListingIds.includes(l.id)) as l (l.id)}
+					<a class="card listing-card" href={`/listings/${l.id}`}>
+						<div class="row" style="justify-content: space-between; margin-bottom:8px;">
+							<Badges mechanism={l.pricing_mechanism} />
+							<Badges status={l.status} />
+						</div>
+						<strong>{l.content_type} on {l.platform}</strong>
+						<div class="muted" style="font-size:13px; margin-top:4px;">{l.availability_window}</div>
+						<div class="muted" style="font-size:13px; margin-top:6px;">Offer awaiting your response</div>
+					</a>
+				{/each}
+				{#each data.listings.filter((l: any) => data.pendingGrantListingIds.includes(l.id)) as l (l.id)}
+					<a class="card listing-card" href={`/listings/${l.id}`}>
+						<div class="row" style="justify-content: space-between; margin-bottom:8px;">
+							<Badges mechanism={l.pricing_mechanism} />
+							<Badges status={l.status} />
+						</div>
+						<strong>{l.content_type} on {l.platform}</strong>
+						<div class="muted" style="font-size:13px; margin-top:4px;">{l.availability_window}</div>
+						<div class="muted" style="font-size:13px; margin-top:6px;">Exclusivity grant awaiting your response</div>
 					</a>
 				{/each}
 			</div>
@@ -51,7 +73,7 @@
 		<p class="muted">Signed in as {profile.display_name}</p>
 
 		<div class="section-title">Your active reservations</div>
-		{#if !data.reservations || data.reservations.length === 0}
+		{#if (!data.reservations || data.reservations.length === 0) && (!data.offers || data.offers.length === 0) && (!data.grants || data.grants.length === 0)}
 			<div class="empty">No active engagement yet. <a href="/browse">Browse listings</a> to get started.</div>
 		{:else}
 			<div class="grid">
@@ -64,6 +86,38 @@
 						<strong>{r.listing.creator?.display_name} — {r.listing.content_type} on {r.listing.platform}</strong>
 						<div class="muted" style="font-size:13px; margin-top:4px;">{r.listing.availability_window}</div>
 						<div class="muted" style="font-size:13px; margin-top:6px;">Reservation: {r.status}</div>
+					</a>
+				{/each}
+				{#each data.offers ?? [] as o (o.id)}
+					<a class="card listing-card" href={`/listings/${o.listing.id}`}>
+						<div class="row" style="justify-content: space-between; margin-bottom:8px;">
+							<Badges mechanism={o.listing.pricing_mechanism} />
+							<Badges status={o.listing.status} />
+						</div>
+						<strong>{o.listing.creator?.display_name} — {o.listing.content_type} on {o.listing.platform}</strong>
+						<div class="muted" style="font-size:13px; margin-top:4px;">{o.listing.availability_window}</div>
+						<div class="muted" style="font-size:13px; margin-top:6px;">
+							{o.proposed_by === 'advertiser' ? 'Offer sent — awaiting creator response' : 'Creator countered — awaiting your response'}
+						</div>
+					</a>
+				{/each}
+				{#each data.grants ?? [] as g (g.id)}
+					<a class="card listing-card" href={`/listings/${g.listing.id}`}>
+						<div class="row" style="justify-content: space-between; margin-bottom:8px;">
+							<Badges mechanism={g.listing.pricing_mechanism} />
+							<Badges status={g.listing.status} />
+						</div>
+						<strong>{g.listing.creator?.display_name} — {g.listing.content_type} on {g.listing.platform}</strong>
+						<div class="muted" style="font-size:13px; margin-top:4px;">{g.listing.availability_window}</div>
+						<div class="muted" style="font-size:13px; margin-top:6px;">
+							{#if !g.negotiation}
+								Propose terms to move forward
+							{:else if g.negotiation.from === 'advertiser'}
+								Awaiting creator response
+							{:else}
+								Creator proposed terms — awaiting your response
+							{/if}
+						</div>
 					</a>
 				{/each}
 			</div>
