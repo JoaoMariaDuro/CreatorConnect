@@ -11,7 +11,8 @@
 		LogOut,
 		LogIn,
 		Sparkles,
-		KeyRound
+		KeyRound,
+		ShieldAlert
 	} from '@lucide/svelte';
 
 	const user = $derived(page.data.user);
@@ -82,6 +83,12 @@
 			<Map size={17} />
 			<span>Roadmap</span>
 		</a>
+		{#if profile?.is_platform_admin}
+			<a class="nav-item admin" class:active={isActive('/admin')} href="/admin">
+				<ShieldAlert size={17} />
+				<span>Admin</span>
+			</a>
+		{/if}
 	</nav>
 
 	<div class="sidebar-footer">
@@ -166,6 +173,17 @@
 	.nav-item.active {
 		background: var(--accent-bg);
 		color: var(--accent-dark);
+	}
+	.nav-item.admin {
+		color: var(--red);
+	}
+	.nav-item.admin:hover {
+		background: var(--red-bg);
+		color: var(--red);
+	}
+	.nav-item.admin.active {
+		background: var(--red-bg);
+		color: var(--red);
 	}
 	.sidebar-footer {
 		border-top: 1px solid var(--border);

@@ -5,7 +5,7 @@ import type { LayoutServerLoad } from './$types';
 export const load: LayoutServerLoad = async ({ locals: { safeGetSession, supabase }, cookies }) => {
 	const { session, user } = await safeGetSession();
 
-	let profile: { id: string; role: string; display_name: string } | null = null;
+	let profile: { id: string; role: string; display_name: string; is_platform_admin?: boolean } | null = null;
 	if (user && supabase) {
 		const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
 		profile = data ?? null;
