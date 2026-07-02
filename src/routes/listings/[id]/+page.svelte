@@ -86,7 +86,7 @@
 	{#if !listing}
 		<div class="empty">Listing not found.</div>
 	{:else}
-		<a href="/" class="back-link">&larr; Back to listings</a>
+		<a href="/browse" class="back-link">&larr; Back to listings</a>
 
 		<div class="row" style="justify-content: space-between; align-items: flex-start; margin: 10px 0 4px;">
 			<div>
@@ -246,7 +246,7 @@
 		font-size: 13px;
 	}
 	.deal-banner {
-		background: #dce8fd;
+		background: var(--accent-bg);
 		color: var(--accent-dark);
 		padding: 10px 12px;
 		border-radius: var(--radius);
@@ -284,18 +284,18 @@
 		border-bottom: none;
 	}
 	.explainer {
-		background: #fafafe;
+		background: var(--panel-raised);
 	}
 	.confirm-box {
 		margin-top: 12px;
 		padding: 12px;
 		border: 1px solid var(--border);
 		border-radius: 8px;
-		background: #fafafe;
+		background: var(--panel-raised);
 		font-size: 13px;
 	}
 	.warn {
-		color: #b91c1c;
+		color: var(--red);
 		font-size: 13px;
 	}
 </style>

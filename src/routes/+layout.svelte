@@ -1,7 +1,7 @@
 <script lang="ts">
 	import favicon from '$lib/assets/favicon.svg';
 	import '$lib/app.css';
-	import Header from '$lib/Header.svelte';
+	import Sidebar from '$lib/Sidebar.svelte';
 
 	let { children } = $props();
 </script>
@@ -11,5 +11,9 @@
 	<title>CreatorConnect</title>
 </svelte:head>
 
-<Header />
-{@render children()}
+<div class="app-shell">
+	<Sidebar />
+	<div class="app-main">
+		{@render children()}
+	</div>
+</div>

@@ -1,21 +1,26 @@
 :root {
-	--bg: #f7f7f8;
-	--panel: #ffffff;
-	--border: #e2e2e6;
-	--text: #1c1c1f;
-	--text-muted: #6b6b74;
-	--accent: #3a5bfd;
-	--accent-dark: #2942c9;
-	--green: #1e8a4c;
-	--green-bg: #e6f6ec;
-	--amber: #a3670c;
-	--amber-bg: #fdf1de;
-	--purple: #6b3fa0;
-	--purple-bg: #f1e9fb;
-	--red: #c53030;
-	--red-bg: #fdecec;
-	--radius: 8px;
+	--bg: #0e0e10;
+	--panel: #17171a;
+	--panel-raised: #1d1d21;
+	--border: #2a2a2e;
+	--border-strong: #3a3a40;
+	--text: #ededf0;
+	--text-muted: #8a8a92;
+	--accent: #6366f1;
+	--accent-dark: #818cf8;
+	--accent-bg: rgba(99, 102, 241, 0.15);
+	--green: #34d399;
+	--green-bg: rgba(52, 211, 153, 0.14);
+	--amber: #fbbf24;
+	--amber-bg: rgba(251, 191, 36, 0.14);
+	--purple: #c084fc;
+	--purple-bg: rgba(192, 132, 252, 0.14);
+	--red: #f87171;
+	--red-bg: rgba(248, 113, 113, 0.14);
+	--radius: 10px;
+	--sidebar-w: 220px;
 	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+	color-scheme: dark;
 }
 
 * {
@@ -29,7 +34,7 @@ body {
 }
 
 a {
-	color: var(--accent);
+	color: var(--accent-dark);
 	text-decoration: none;
 }
 a:hover {
@@ -41,26 +46,45 @@ button {
 	cursor: pointer;
 }
 
+code {
+	background: var(--panel-raised);
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	padding: 1px 5px;
+	font-size: 0.9em;
+}
+
 .container {
 	max-width: 1080px;
 	margin: 0 auto;
 	padding: 24px 20px 64px;
 }
 
+.app-main {
+	margin-left: var(--sidebar-w);
+	min-height: 100vh;
+}
+
 .btn {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
-	border: 1px solid var(--border);
-	background: var(--panel);
+	border: 1px solid var(--border-strong);
+	background: var(--panel-raised);
 	color: var(--text);
 	padding: 8px 14px;
 	border-radius: var(--radius);
 	font-size: 14px;
 	font-weight: 500;
+	transition: border-color 0.12s, background 0.12s;
 }
 .btn:hover {
 	border-color: var(--accent);
+	text-decoration: none;
+}
+.btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
 }
 
 .btn-primary {
@@ -69,8 +93,8 @@ button {
 	color: #fff;
 }
 .btn-primary:hover {
-	background: var(--accent-dark);
-	border-color: var(--accent-dark);
+	background: #5457e5;
+	border-color: #5457e5;
 }
 
 .btn-sm {
@@ -102,10 +126,20 @@ button {
 	font-family: inherit;
 	font-size: 14px;
 	padding: 8px 10px;
-	border: 1px solid var(--border);
+	border: 1px solid var(--border-strong);
 	border-radius: 6px;
-	background: #fff;
+	background: var(--panel-raised);
 	color: var(--text);
+}
+.field input::placeholder,
+.field textarea::placeholder {
+	color: #55555c;
+}
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+	outline: none;
+	border-color: var(--accent);
 }
 .field textarea {
 	resize: vertical;
@@ -134,7 +168,7 @@ button {
 	color: var(--amber);
 }
 .badge-d {
-	background: #dce8fd;
+	background: var(--accent-bg);
 	color: var(--accent-dark);
 }
 .badge-open {
@@ -146,25 +180,25 @@ button {
 	color: var(--amber);
 }
 .badge-deal {
-	background: #dce8fd;
+	background: var(--accent-bg);
 	color: var(--accent-dark);
 }
 .badge-draft {
-	background: #f0f0f0;
-	color: #666;
+	background: #232327;
+	color: #9a9aa2;
 }
 .badge-reserved {
 	background: var(--amber-bg);
 	color: var(--amber);
 }
 .badge-confirmed {
-	background: #dce8fd;
+	background: var(--accent-bg);
 	color: var(--accent-dark);
 }
 .badge-expired,
 .badge-cancelled {
-	background: #fee2e2;
-	color: #b91c1c;
+	background: var(--red-bg);
+	color: var(--red);
 }
 
 .grid {
@@ -210,6 +244,6 @@ hr.sep {
 	font-size: 14px;
 	padding: 20px;
 	text-align: center;
-	border: 1px dashed var(--border);
+	border: 1px dashed var(--border-strong);
 	border-radius: var(--radius);
 }

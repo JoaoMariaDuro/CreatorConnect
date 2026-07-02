@@ -1,113 +1,168 @@
 <script lang="ts">
-	import { formatMoney, formatDate, type Mechanism } from '$lib/format';
-	import Badges from '$lib/Badges.svelte';
+	import { page } from '$app/state';
+	import { CalendarClock, Handshake, ShieldCheck, ArrowRight } from '@lucide/svelte';
 
-	let { data } = $props();
-
-	let platformFilter = $state<'all' | string>('all');
-	let mechanismFilter = $state<'all' | Mechanism>('all');
-
-	const filtered = $derived(
-		data.listings.filter((l: any) => {
-			if (platformFilter !== 'all' && l.platform !== platformFilter) return false;
-			if (mechanismFilter !== 'all' && l.pricing_mechanism !== mechanismFilter) return false;
-			return true;
-		})
-	);
-
-	function priceInfo(l: any): string {
-		if (l.pricing_mechanism === 'A') {
-			return l.status === 'deal' ? 'Deal confirmed' : `Asking ${formatMoney(l.floor_price_cents ?? 0)}`;
-		}
-		if (l.pricing_mechanism === 'C') {
-			if (l.status === 'deal') return 'Deal confirmed';
-			if (l.rate_card_low_cents && l.rate_card_high_cents) {
-				return `~${formatMoney(l.rate_card_low_cents)}–${formatMoney(l.rate_card_high_cents)}`;
-			}
-			return 'Rate negotiated bilaterally';
-		}
-		if (l.pricing_mechanism === 'D') {
-			return l.status === 'deal' ? 'Deal confirmed' : `Floor ${formatMoney(l.floor_price_cents ?? 0)}`;
-		}
-		return '';
-	}
+	const user = $derived(page.data.user);
 </script>
 
-<div class="container">
-	<h1>Browse Sponsorship Slots</h1>
-	<p class="muted">Reserve tomorrow's sponsorship slots today. Every listing shows its pricing mechanism up front.</p>
+<svelte:head>
+	<title>CreatorConnect — reserve tomorrow's sponsorship slots today</title>
+</svelte:head>
 
-	<div class="row" style="margin: 16px 0 24px;">
-		<div class="field" style="margin-bottom:0;">
-			<label for="platform-filter">Platform</label>
-			<select id="platform-filter" bind:value={platformFilter}>
-				<option value="all">All platforms</option>
-				<option value="YouTube">YouTube</option>
-				<option value="Instagram">Instagram</option>
-				<option value="TikTok">TikTok</option>
-			</select>
-		</div>
-		<div class="field" style="margin-bottom:0;">
-			<label for="mechanism-filter">Mechanism</label>
-			<select id="mechanism-filter" bind:value={mechanismFilter}>
-				<option value="all">All mechanisms</option>
-				<option value="A">A — Fixed Price + Counter-Offer</option>
-				<option value="C">C — Reserve-the-Relationship</option>
-				<option value="D">D — Reserve-the-Slot</option>
-			</select>
-		</div>
-	</div>
-
-	{#if filtered.length === 0}
-		<div class="empty">
-			{#if data.listings.length === 0}
-				No listings yet — be the first to <a href="/create">create one</a>.
+<div class="landing">
+	<section class="hero container">
+		<span class="eyebrow">Booking marketplace for creator sponsorships</span>
+		<h1>Reserve tomorrow's sponsorship slots today.</h1>
+		<p class="lede">
+			Creators publish upcoming content slots. Advertisers lock them in before they're gone.
+			No cold outreach, no chasing invoices — just a booking marketplace built for how sponsorship
+			deals actually happen.
+		</p>
+		<div class="row" style="margin-top: 24px;">
+			<a class="btn btn-primary btn-lg" href="/browse">
+				Browse the marketplace <ArrowRight size={16} />
+			</a>
+			{#if !user}
+				<a class="btn btn-lg" href="/login">Sign in / Sign up</a>
 			{:else}
-				No listings match those filters.
+				<a class="btn btn-lg" href="/dashboard">Go to dashboard</a>
 			{/if}
 		</div>
-	{:else}
+	</section>
+
+	<section class="container">
+		<div class="section-title" style="margin-top:0;">How it works</div>
 		<div class="grid">
-			{#each filtered as listing (listing.id)}
-				<a class="card listing-card" href={`/listings/${listing.id}`}>
-					<div class="row" style="justify-content: space-between; margin-bottom: 8px;">
-						<Badges mechanism={listing.pricing_mechanism} />
-						<Badges status={listing.status} />
-					</div>
-					<h3 style="margin: 4px 0 2px;">{listing.creator?.display_name}</h3>
-					<div class="muted" style="font-size:13px; margin-bottom:8px;">
-						{listing.creator?.handle ?? ''} · {(listing.creator?.follower_count ?? 0).toLocaleString()} followers
-						{#if listing.creator?.niche_tags?.length}
-							· {listing.creator.niche_tags.join(', ')}
-						{/if}
-					</div>
-					<div class="row" style="font-size:13px; margin-bottom:6px;">
-						<strong>{listing.platform}</strong>
-						<span class="muted">·</span>
-						<span>{listing.content_type}</span>
-					</div>
-					<div class="muted" style="font-size:13px; margin-bottom:10px;">{listing.availability_window}</div>
-					<hr class="sep" />
-					<div class="row" style="justify-content: space-between;">
-						<strong>{priceInfo(listing)}</strong>
-						<span class="muted" style="font-size:12px;">{formatDate(listing.created_at)}</span>
-					</div>
-				</a>
-			{/each}
+			<div class="card feature">
+				<CalendarClock size={22} />
+				<h3>Creators publish slots</h3>
+				<p class="muted">
+					List an upcoming content slot with your availability window, then pick how it gets priced —
+					fixed price, exclusive early access, or a reserve-with-deposit hold.
+				</p>
+			</div>
+			<div class="card feature">
+				<Handshake size={22} />
+				<h3>Advertisers lock them in</h3>
+				<p class="muted">
+					Browse open slots, see the pricing mechanism up front, and secure the ones you want before
+					someone else does.
+				</p>
+			</div>
+			<div class="card feature">
+				<ShieldCheck size={22} />
+				<h3>Confirm and deliver</h3>
+				<p class="muted">
+					Every mechanism converges on the same contract: clear deliverable spec, FTC disclosure
+					terms baked in, and a straightforward delivery/dispute flow.
+				</p>
+			</div>
 		</div>
-	{/if}
+	</section>
+
+	<section class="container">
+		<div class="section-title">Three ways to sell a slot</div>
+		<div class="grid">
+			<div class="card">
+				<span class="badge badge-a">Mechanism A</span>
+				<h3 style="margin: 10px 0 4px;">Fixed Price + Counter-Offer</h3>
+				<p class="muted" style="font-size:14px;">Set an asking price. Advertisers accept it or counter — simple, familiar, classifieds-style.</p>
+			</div>
+			<div class="card">
+				<span class="badge badge-c">Mechanism C</span>
+				<h3 style="margin: 10px 0 4px;">Reserve-the-Relationship</h3>
+				<p class="muted" style="font-size:14px;">Give one advertiser exclusive early access to negotiate — no deposit, no binding hold.</p>
+			</div>
+			<div class="card">
+				<span class="badge badge-d">Mechanism D</span>
+				<h3 style="margin: 10px 0 4px;">Reserve-the-Slot</h3>
+				<p class="muted" style="font-size:14px;">A floor price and a deposit-backed hold. The advertiser locks the slot; you confirm the final price.</p>
+			</div>
+		</div>
+	</section>
+
+	<section class="container cta-band">
+		<div class="card cta-card">
+			<div>
+				<h2 style="margin:0 0 6px;">Curious where this is headed?</h2>
+				<p class="muted" style="margin:0;">See what's live today and what's next on the <a href="/roadmap">roadmap</a>.</p>
+			</div>
+			<a class="btn btn-primary" href="/roadmap">View roadmap</a>
+		</div>
+	</section>
 </div>
 
 <style>
-	.listing-card {
-		display: block;
-		color: inherit;
-		text-decoration: none;
-		transition: box-shadow 0.15s, border-color 0.15s;
+	.landing {
+		padding-bottom: 40px;
 	}
-	.listing-card:hover {
-		border-color: var(--accent);
-		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-		text-decoration: none;
+	.hero {
+		padding-top: 72px;
+		padding-bottom: 40px;
+		max-width: 720px;
+	}
+	.eyebrow {
+		display: inline-block;
+		font-size: 12px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--accent-dark);
+		background: var(--accent-bg);
+		padding: 4px 10px;
+		border-radius: 999px;
+		margin-bottom: 16px;
+	}
+	.hero h1 {
+		font-size: 42px;
+		line-height: 1.15;
+		margin: 0 0 16px;
+		letter-spacing: -0.02em;
+	}
+	.lede {
+		font-size: 17px;
+		color: var(--text-muted);
+		line-height: 1.6;
+		max-width: 600px;
+	}
+	.btn-lg {
+		padding: 11px 20px;
+		font-size: 15px;
+	}
+	.feature {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+	.feature :global(svg) {
+		color: var(--accent-dark);
+		margin-bottom: 4px;
+	}
+	.feature h3 {
+		margin: 0;
+		font-size: 16px;
+	}
+	.feature p {
+		margin: 0;
+		font-size: 14px;
+	}
+	.cta-band {
+		margin-top: 8px;
+	}
+	.cta-card {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		background: linear-gradient(135deg, var(--panel-raised), var(--panel));
+	}
+	@media (max-width: 640px) {
+		.hero h1 {
+			font-size: 30px;
+		}
+		.cta-card {
+			flex-direction: column;
+			align-items: flex-start;
+		}
 	}
 </style>

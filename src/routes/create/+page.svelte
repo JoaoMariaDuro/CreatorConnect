@@ -220,7 +220,7 @@
 	}
 	.mechanism-choice {
 		text-align: left;
-		background: #fff;
+		background: var(--panel-raised);
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
 		padding: 12px;
@@ -228,10 +228,10 @@
 	.mechanism-choice.selected {
 		border-color: var(--accent);
 		box-shadow: 0 0 0 1px var(--accent);
-		background: #f5f7ff;
+		background: var(--accent-bg);
 	}
 	.warn {
-		color: #b91c1c;
+		color: var(--red);
 		font-size: 13px;
 	}
 </style>

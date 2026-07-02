@@ -69,10 +69,10 @@
 						<div class="row" style="justify-content: space-between;">
 							<div>
 								<strong>{l.manager?.display_name}</strong>
-								<span class="badge" style="margin-left:8px; background:#eee; color:#555;">{l.status}</span>
+								<span class="badge" style="margin-left:8px; background:var(--panel-raised); color:var(--text-muted);">{l.status}</span>
 							</div>
 							{#if l.status !== 'revoked'}
-								<button class="btn btn-sm" style="color:#b91c1c;" onclick={() => revoke(l.id)}>Revoke</button>
+								<button class="btn btn-sm" style="color:var(--red);" onclick={() => revoke(l.id)}>Revoke</button>
 							{/if}
 						</div>
 					</div>
@@ -124,7 +124,7 @@
 		max-width: 560px;
 	}
 	.warn {
-		color: #b91c1c;
+		color: var(--red);
 		font-size: 13px;
 	}
 </style>

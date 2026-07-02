@@ -53,7 +53,7 @@
 		<div class="contract card">
 			<div class="contract-header">
 				<div>
-					<span class="badge" style="background:#dce8fd; color:var(--accent-dark);">Deal Confirmed</span>
+					<span class="badge" style="background:var(--accent-bg); color:var(--accent-dark);">Deal Confirmed</span>
 					<h1 style="margin: 8px 0 0;">Sponsorship Agreement</h1>
 					<p class="muted" style="margin-top:4px;">
 						Reached via Mechanism {deal.listing?.pricing_mechanism} — {mechanismLabel[deal.listing?.pricing_mechanism as 'A' | 'C' | 'D']}
@@ -109,11 +109,11 @@
 					<button class="btn btn-primary btn-sm" onclick={confirmDelivery} disabled={busy}>
 						{busy ? 'Confirming…' : 'Confirm delivery'}
 					</button>
-					<button class="btn btn-sm" style="color:#b91c1c;" onclick={() => (showDisputeForm = true)}>Flag a dispute</button>
+					<button class="btn btn-sm" style="color:var(--red);" onclick={() => (showDisputeForm = true)}>Flag a dispute</button>
 				</div>
 			{:else if (deal.status === 'active' || deal.status === 'delivered') && isParty}
 				<hr class="sep" />
-				<button class="btn btn-sm" style="color:#b91c1c;" onclick={() => (showDisputeForm = true)}>Flag a dispute</button>
+				<button class="btn btn-sm" style="color:var(--red);" onclick={() => (showDisputeForm = true)}>Flag a dispute</button>
 			{/if}
 
 			{#if showDisputeForm}
@@ -124,7 +124,7 @@
 						<textarea id="dispute-reason" bind:value={disputeReason}></textarea>
 					</div>
 					<div class="row">
-						<button class="btn btn-primary btn-sm" style="background:#b91c1c;" onclick={flagDispute} disabled={busy}>
+						<button class="btn btn-primary btn-sm" style="background:var(--red); border-color:var(--red);" onclick={flagDispute} disabled={busy}>
 							{busy ? 'Flagging…' : 'Confirm dispute'}
 						</button>
 						<button class="btn btn-sm" onclick={() => (showDisputeForm = false)}>Cancel</button>
@@ -184,11 +184,11 @@
 		padding: 12px;
 		border: 1px solid var(--border);
 		border-radius: 8px;
-		background: #fafafe;
+		background: var(--panel-raised);
 		font-size: 13px;
 	}
 	.warn {
-		color: #b91c1c;
+		color: var(--red);
 		font-size: 13px;
 	}
 </style>

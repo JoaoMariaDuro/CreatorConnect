@@ -95,13 +95,13 @@
 	.card {
 		max-width: 420px;
 		width: 100%;
-		background: white;
-		border: 1px solid #e5e5e5;
+		background: var(--panel);
+		border: 1px solid var(--border);
 		border-radius: 12px;
 		padding: 32px;
 	}
 	.sub {
-		color: #666;
+		color: var(--text-muted);
 	}
 	.field {
 		margin-bottom: 16px;
@@ -121,19 +121,19 @@
 		font-size: 15px;
 	}
 	.muted {
-		color: #999;
+		color: var(--text-muted);
 		font-size: 12px;
 	}
 	.warn {
-		color: #b91c1c;
+		color: var(--red);
 	}
 	.ok {
-		color: #15803d;
+		color: var(--green);
 	}
 	.ghost {
 		background: none;
 		border: none;
-		color: #4338ca;
+		color: var(--accent-dark);
 		cursor: pointer;
 		text-decoration: underline;
 		padding: 0;

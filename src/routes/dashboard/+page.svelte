@@ -52,7 +52,7 @@
 
 		<div class="section-title">Your active reservations</div>
 		{#if !data.reservations || data.reservations.length === 0}
-			<div class="empty">No active engagement yet. <a href="/">Browse listings</a> to get started.</div>
+			<div class="empty">No active engagement yet. <a href="/browse">Browse listings</a> to get started.</div>
 		{:else}
 			<div class="grid">
 				{#each data.reservations as r (r.id)}
@@ -70,7 +70,7 @@
 		{/if}
 
 		<div class="section-title">Browse more</div>
-		<a class="btn" href="/">Go to marketplace</a>
+		<a class="btn" href="/browse">Go to marketplace</a>
 	{:else if profile.role === 'manager'}
 		<p class="muted">Signed in as {profile.display_name} · representing {data.roster.length} creator{data.roster.length === 1 ? '' : 's'}</p>
 
