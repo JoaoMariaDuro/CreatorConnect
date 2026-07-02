@@ -1,13 +1,5 @@
 # Supabase setup
 
-**Changed since you last ran these (Handoff #3, July 2026) — re-run these four files against your
-live project's SQL Editor** (each is idempotent, safe to re-run in full): `schema.sql` (new
-`profiles.completed_deals_count` column + `public_profiles` view update), `listings.sql` (new
-`creator_listings.performance_stats_updated_at` column), `rpc-delivery.sql`
-(`release_delivery_balance` now increments `completed_deals_count`), `cron-scheduling.sql` (new
-third cron job for `expire_exclusivity`). Nothing else in this directory changed. Full context in
-`../handoffs/3rd.md`'s Completion Log.
-
 Run these files **in this exact order**, once, in your Supabase project's SQL Editor
 (left sidebar → SQL Editor → New query → paste → Run). Each is idempotent (`create table if not
 exists`, `drop policy if exists` before `create policy`) so re-running one after a mistake is safe.

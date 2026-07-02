@@ -359,14 +359,16 @@ screenshot. **Before any pilot creator or advertiser touches this app, manually 
 - The browse segmented control and price-info formatting against a real Mechanism-C listing with
   no rate-card range set (none existed in seed data during this session).
 
-### Outstanding action: SQL changes need to be applied to the live Supabase project
+### ~~Outstanding action: SQL changes need to be applied to the live Supabase project~~ DONE
 
-This repo's convention (`supabase/README.md`) is that `.sql` files are run manually via the
+~~This repo's convention (`supabase/README.md`) is that `.sql` files are run manually via the
 Supabase SQL Editor — there is no auto-migration. Four files changed this session and need
 re-running against your live project (each is idempotent, safe to re-run in full): `schema.sql`,
 `listings.sql`, `rpc-delivery.sql`, `cron-scheduling.sql`. See `supabase/README.md`'s own
 top-of-file note for the exact reasoning per file. Nothing in the app will reflect this session's
-schema/RPC changes until this is done.
+schema/RPC changes until this is done.~~ Founder confirmed all four files were re-run against the
+live project shortly after this log was first written. `supabase/README.md`'s temporary
+top-of-file notice has been removed now that it's no longer actionable.
 
 ### What's still genuinely open
 
