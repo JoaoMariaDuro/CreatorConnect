@@ -18,6 +18,11 @@ exists`, `drop policy if exists` before `create policy`) so re-running one after
    row-locked reservation RPC — see the file header for why this is the first real piece of business
    logic), `confirm_deal_as`, `expire_reservation`. Deliberately D-only — mechanisms A/C's RPCs land
    in a later file, matching `../docs/ROADMAP.md`'s "ship D first" sequencing call.
+7. [`rpc-delivery.sql`](./rpc-delivery.sql) — `confirm_delivery_as` (advertiser sign-off),
+   `flag_dispute_as` (either party freezes release), `release_delivery_balance` (the function a
+   future pg_cron auto-release job will call — see "what's NOT here yet" below). Mechanism-agnostic:
+   works the same regardless of which mechanism produced the `deals` row, per the convergence-point
+   design in `../docs/ARCHITECTURE.md` Section 2.
 
 ## Then: get the app talking to it
 
@@ -40,7 +45,10 @@ exists`, `drop policy if exists` before `create policy`) so re-running one after
   `convert_exclusivity_as`) — Phase 1-FastFollow, per the roadmap.
 - **Stripe Connect integration** — the escrow tables exist but nothing writes to them yet. That's
   roadmap Phase 0 items 0.4/0.5, not done.
-- **pg_cron scheduling** for `expire_reservation` — the function exists, nothing calls it on a timer
-  yet.
+- **pg_cron scheduling** for `expire_reservation` and `release_delivery_balance` — both functions
+  exist, nothing calls them on a timer yet. For now: reservations don't auto-expire past their
+  deadline, and delivered deals stay `delivered` until someone calls `release_delivery_balance`
+  manually (there's no UI button for this on purpose — v1's dispute/release model is founder-mediated
+  per `../docs/PRODUCT.md`, not self-service).
 - **The sealed-bid tiebreaker's RPCs** — deliberately deferred to Phase 1.5 per the roadmap; the
   tables exist, `place_reservation` currently just rejects contention outright.
