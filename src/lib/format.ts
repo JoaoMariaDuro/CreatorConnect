@@ -31,7 +31,7 @@ export const mechanismLabel: Record<Mechanism, string> = {
 };
 
 export const mechanismShortExplainer: Record<Mechanism, string> = {
-	A: 'Set an asking price. Advertisers can accept it or counter — you negotiate back and forth until you agree.',
-	C: 'Give one advertiser exclusive early access to negotiate with you first, no deposit or binding hold. If they don’t close within the window, it opens back up.',
-	D: 'Set a floor price and a reservation deadline. Advertisers pay a small deposit to lock the slot, then you confirm the final price shortly after.'
+	A: 'Set an asking price. Advertisers can accept it outright or counter — you negotiate back and forth by message until you agree on a final number.',
+	C: 'Give one advertiser exclusive early access to negotiate with you first — no deposit, no binding hold. If they don’t close within the window, the slot opens back up to others.',
+	D: 'Set a floor price and a reservation window. An advertiser pays a small, non-refundable deposit to lock the slot — you then confirm a final price at or above your floor (not stuck at the floor number). If you don’t respond in time, the reservation expires and the advertiser’s deposit is refunded automatically.'
 };
