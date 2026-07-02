@@ -6,6 +6,7 @@
 	let { data } = $props();
 	const deal = $derived(data.deal);
 	const user = $derived(page.data.user);
+	const profile = $derived(page.data.profile);
 	const supabase = $derived(page.data.supabase);
 
 	const bookingPortion = $derived(deal ? Math.round(deal.final_price_cents * 0.5) : 0);
@@ -13,8 +14,15 @@
 	const platformFeeRate = 0.15;
 	const platformFee = $derived(deal ? Math.round(deal.final_price_cents * platformFeeRate) : 0);
 
+	// isAdvertiser stays direct-only: manager_creator_links delegation is creator-side only, so a
+	// delegated manager acts on behalf of the creator, never the advertiser. isParty additionally
+	// accepts a delegated manager — matches flag_dispute_as's own is_authorized_for_creator check
+	// (rpc-delivery.sql), computed server-side in +page.server.ts (see listings/[id] for the same
+	// pattern), so a legitimately linked manager sees the same "flag a dispute" action the creator does.
 	const isAdvertiser = $derived(!!user && !!deal && user.id === deal.advertiser_id);
-	const isParty = $derived(!!user && !!deal && (user.id === deal.advertiser_id || user.id === deal.creator_id));
+	const isParty = $derived(
+		!!user && !!deal && (user.id === deal.advertiser_id || user.id === deal.creator_id || data.isDelegatedManager)
+	);
 
 	let busy = $state(false);
 	let err = $state('');
@@ -49,6 +57,10 @@
 		<div class="empty">No confirmed deal found.</div>
 	{:else}
 		<a href={`/listings/${deal.listing_id}`} class="back-link">&larr; Back to listing</a>
+
+		{#if data.isDelegatedManager}
+			<div class="acting-banner">Acting as {profile?.display_name} on behalf of {deal.creator?.display_name}</div>
+		{/if}
 
 		<div class="contract card">
 			<div class="contract-header">
@@ -160,6 +172,15 @@
 	}
 	.back-link {
 		font-size: 13px;
+	}
+	.acting-banner {
+		background: var(--purple-bg);
+		color: var(--purple);
+		padding: 8px 12px;
+		border-radius: var(--radius);
+		font-size: 13px;
+		font-weight: 600;
+		margin: 12px 0;
 	}
 	.contract {
 		margin-top: 16px;
