@@ -209,6 +209,14 @@ code {
 	background: var(--red-bg);
 	color: var(--red);
 }
+.badge-stale-soft {
+	background: var(--amber-bg);
+	color: var(--amber);
+}
+.badge-stale-hard {
+	background: var(--red-bg);
+	color: var(--red);
+}
 
 .grid {
 	display: grid;

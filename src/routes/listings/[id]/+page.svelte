@@ -42,6 +42,52 @@
 		await invalidateAll();
 	}
 
+	// performance_stats jsonb shape (no schema-level enforcement, so documenting here where it's
+	// read/written): { avg_views_per_post?: number, engagement_rate_pct?: number } — the two most
+	// standard, self-reportable media-kit metrics; kept minimal for MVP manual entry.
+	let statsAvgViewsDraft = $state('');
+	let statsEngagementDraft = $state('');
+	let statsBusy = $state(false);
+	let statsErr = $state('');
+
+	$effect(() => {
+		if (listing) {
+			statsAvgViewsDraft = listing.performance_stats?.avg_views_per_post != null ? String(listing.performance_stats.avg_views_per_post) : '';
+			statsEngagementDraft = listing.performance_stats?.engagement_rate_pct != null ? String(listing.performance_stats.engagement_rate_pct) : '';
+		}
+	});
+
+	async function saveStats() {
+		if (!listing || !supabase) return;
+		statsBusy = true;
+		statsErr = '';
+		const performance_stats: Record<string, number> = {};
+		if (statsAvgViewsDraft !== '') performance_stats.avg_views_per_post = Math.round(Number(statsAvgViewsDraft));
+		if (statsEngagementDraft !== '') performance_stats.engagement_rate_pct = Number(statsEngagementDraft);
+		const { error } = await supabase
+			.from('creator_listings')
+			.update({ performance_stats, performance_stats_updated_at: new Date().toISOString() })
+			.eq('id', listing.id);
+		statsBusy = false;
+		if (error) { statsErr = error.message; return; }
+		await invalidateAll();
+	}
+
+	// Staleness signal per PRODUCT.md §7 Q3: soft warning at 60-179 days since last update, hard flag
+	// at 180+ days (6 months). No badge if never entered or under 60 days.
+	const statsDaysSinceUpdate = $derived(
+		listing?.performance_stats_updated_at
+			? Math.floor((Date.now() - new Date(listing.performance_stats_updated_at).getTime()) / (1000 * 60 * 60 * 24))
+			: null
+	);
+	const statsStaleness = $derived(
+		statsDaysSinceUpdate == null ? null : statsDaysSinceUpdate >= 180 ? 'hard' : statsDaysSinceUpdate >= 60 ? 'soft' : 'fresh'
+	);
+	const hasStatsToShow = $derived(
+		!!listing?.performance_stats &&
+			(listing.performance_stats.avg_views_per_post != null || listing.performance_stats.engagement_rate_pct != null)
+	);
+
 	let showReserveConfirm = $state(false);
 	let reserving = $state(false);
 	let reserveErr = $state('');
@@ -235,7 +281,43 @@
 						<div class="kv"><span class="muted">Floor price</span><strong>{formatMoney(listing.floor_price_cents ?? 0)}</strong></div>
 						<div class="kv"><span class="muted">Reservation deadline</span><strong>{formatDate(listing.reservation_deadline ?? '')}</strong></div>
 					{/if}
+
+					{#if hasStatsToShow}
+						<hr class="sep" />
+						{#if listing.performance_stats.avg_views_per_post != null}
+							<div class="kv"><span class="muted">Avg. views per post</span><strong>{Number(listing.performance_stats.avg_views_per_post).toLocaleString()}</strong></div>
+						{/if}
+						{#if listing.performance_stats.engagement_rate_pct != null}
+							<div class="kv"><span class="muted">Engagement rate</span><strong>{listing.performance_stats.engagement_rate_pct}%</strong></div>
+						{/if}
+						{#if statsStaleness === 'soft'}
+							<span class="badge badge-stale-soft" style="margin-top:8px;">Stats last updated {formatDate(listing.performance_stats_updated_at)} — may be outdated</span>
+						{:else if statsStaleness === 'hard'}
+							<span class="badge badge-stale-hard" style="margin-top:8px;">Stats last updated {formatDate(listing.performance_stats_updated_at)} — likely outdated</span>
+						{/if}
+					{/if}
 				</div>
+
+				{#if isOwnerOrManager && (listing.status === 'draft' || listing.status === 'open')}
+					<div class="card">
+						<h3 style="margin-top:0;">Performance stats</h3>
+						<p class="muted" style="font-size:13px;">
+							Self-reported media-kit stats shown to advertisers on this listing. Manual entry — keep it current.
+						</p>
+						<div class="field">
+							<label for="stats-avg-views">Average views per post</label>
+							<input id="stats-avg-views" type="number" min="0" bind:value={statsAvgViewsDraft} placeholder="e.g. 12000" />
+						</div>
+						<div class="field" style="margin-top:10px;">
+							<label for="stats-engagement">Engagement rate (%)</label>
+							<input id="stats-engagement" type="number" min="0" max="100" step="0.1" bind:value={statsEngagementDraft} placeholder="e.g. 4.2" />
+						</div>
+						<button class="btn btn-sm" style="margin-top:10px;" onclick={saveStats} disabled={statsBusy}>
+							{statsBusy ? 'Saving…' : 'Save stats'}
+						</button>
+						{#if statsErr}<p class="warn">{statsErr}</p>{/if}
+					</div>
+				{/if}
 
 				<div class="card explainer">
 					<strong>How Mechanism {listing.pricing_mechanism} works:</strong>
