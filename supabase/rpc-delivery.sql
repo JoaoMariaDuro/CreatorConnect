@@ -86,6 +86,8 @@ begin
 
   update public.deals set status = 'completed' where id = p_deal_id returning * into v_deal;
 
+  update public.profiles set completed_deals_count = completed_deals_count + 1 where id = v_deal.creator_id;
+
   insert into public.audit_log (actor_id, action, target_table, target_id, after)
   values (v_deal.advertiser_id, 'deal.completed', 'deals', p_deal_id, to_jsonb(v_deal));
 

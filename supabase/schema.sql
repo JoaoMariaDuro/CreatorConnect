@@ -27,11 +27,14 @@ create table if not exists public.profiles (
   bio                     text,
   niche_tags              text[]      not null default '{}',
   follower_count          int,
+  completed_deals_count   int         not null default 0,
   stripe_connect_account_id text,
   stripe_customer_id      text,
   created_at              timestamptz not null default now(),
   updated_at              timestamptz not null default now()
 );
+
+alter table public.profiles add column if not exists completed_deals_count int not null default 0;
 
 alter table public.profiles enable row level security;
 
@@ -54,7 +57,7 @@ create trigger profiles_touch
 -- Public-safe subset for browse/discovery — no stripe ids, no bio (deliberately narrow; widen later
 -- if a real need shows up, per ARCHITECTURE.md's "everyone can select a public-safe subset" note).
 create or replace view public.public_profiles as
-  select id, role, display_name, handle, avatar_url, niche_tags, follower_count
+  select id, role, display_name, handle, avatar_url, niche_tags, follower_count, completed_deals_count
   from public.profiles;
 
 -- Auto-create a profiles row when someone signs up. Role and display_name come from signup metadata

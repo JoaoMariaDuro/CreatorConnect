@@ -104,6 +104,9 @@
 					<h3 style="margin: 4px 0 2px;">{listing.creator?.display_name}</h3>
 					<div class="muted" style="font-size:13px; margin-bottom:8px;">
 						{listing.creator?.handle ?? ''} · {(listing.creator?.follower_count ?? 0).toLocaleString()} followers
+						{#if listing.creator?.completed_deals_count > 0}
+							· {listing.creator.completed_deals_count} completed deal{listing.creator.completed_deals_count === 1 ? '' : 's'}
+						{/if}
 						{#if listing.creator?.niche_tags?.length}
 							· {listing.creator.niche_tags.join(', ')}
 						{/if}

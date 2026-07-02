@@ -194,6 +194,9 @@
 				<h1 style="margin-bottom:4px;">{listing.creator?.display_name} — {listing.content_type} on {listing.platform}</h1>
 				<div class="muted">
 					{listing.creator?.handle ?? ''} · {(listing.creator?.follower_count ?? 0).toLocaleString()} followers
+					{#if listing.creator?.completed_deals_count > 0}
+						· {listing.creator.completed_deals_count} completed deal{listing.creator.completed_deals_count === 1 ? '' : 's'}
+					{/if}
 					{#if listing.creator?.niche_tags?.length}
 						· {listing.creator.niche_tags.join(', ')}
 					{/if}

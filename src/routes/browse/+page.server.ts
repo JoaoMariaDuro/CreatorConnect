@@ -10,7 +10,7 @@ export const load: PageServerLoad = async ({ locals: { supabase } }) => {
 		.select(
 			`id, platform, content_type, availability_window, pricing_mechanism, status,
 			 floor_price_cents, exclusivity_window, rate_card_low_cents, rate_card_high_cents, created_at,
-			 creator:profiles!creator_listings_creator_id_fkey (id, display_name, handle, follower_count, niche_tags)`
+			 creator:profiles!creator_listings_creator_id_fkey (id, display_name, handle, follower_count, niche_tags, completed_deals_count)`
 		)
 		.neq('status', 'draft')
 		.order('created_at', { ascending: false });

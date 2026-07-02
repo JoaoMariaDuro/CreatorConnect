@@ -6,7 +6,7 @@ export const load: PageServerLoad = async ({ params, locals: { safeGetSession, s
 	const { data: listing } = await supabase
 		.from('creator_listings')
 		.select(
-			`*, creator:profiles!creator_listings_creator_id_fkey (id, display_name, handle, follower_count, niche_tags)`
+			`*, creator:profiles!creator_listings_creator_id_fkey (id, display_name, handle, follower_count, niche_tags, completed_deals_count)`
 		)
 		.eq('id', params.id)
 		.maybeSingle();
