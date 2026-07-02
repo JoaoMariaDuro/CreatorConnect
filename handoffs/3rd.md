@@ -260,3 +260,120 @@ findings and `docs/ROLE_ACCESS_AND_UX_SPEC.md`'s Part 3 punch list. If you (the 
 instance) find that reality has diverged from this brief by the time you start — a task already
 done, a new bug found, a file moved — trust the filesystem and `git log` over this document, and
 note the divergence before proceeding.*
+
+---
+
+## Completion Log — execution record (2026-07-02)
+
+*This section documents what actually happened when this brief was executed, so nothing gets
+lost. Written by the orchestrating session immediately after finishing, in the same sitting —
+not reconstructed later from commits alone. Trust this over your own re-derivation from `git log`
+if the two ever seem to disagree on intent (though they shouldn't; every commit message here was
+written to stand alone too).*
+
+### Method
+
+Followed Part A as specified: every task dispatched to a fresh subagent (never done inline by the
+orchestrator), each with an explicit stated final goal, an explicit stated model choice + reason,
+and an explicit stated context-sharing policy before dispatch. Two-stage review on every result
+(spec compliance, then quality) via direct diff inspection — not by trusting the subagent's own
+self-report. One task (dashboard Mechanism A/C surfacing, item 4 below) was sent back once with a
+specific, cited defect before being accepted; every other task passed first-pass review or needed
+only a trivial orchestrator-applied fix (a stale comment, one word). No task came close to the
+5-iteration escalation cap.
+
+**Model allocation:** Sonnet for every task touching real logic — access control, RLS-adjacent
+delegation, RPC error semantics, price formatting/copy judgment. Haiku for exactly one task (the
+`performance_stats_updated_at` schema column) once the investigative/scoping work was already done
+by the orchestrator and the remaining work was mechanical execution of a fully-specified plan.
+
+**Context-sharing:** fully isolated subagents throughout — every batch was chosen specifically
+because the tasks in it touched disjoint files, except one deliberate exception: the P1 batch's
+`/create`+`/login` agent was explicitly warned in its brief that a concurrent agent was also
+editing `browse/+page.svelte`, and told to keep its edit to that file minimal and additive. Both
+landed cleanly with no lost work, confirmed by re-reading the merged diff before commit.
+
+### Outcome by task
+
+| # | Task | Outcome | Commit(s) |
+|---|---|---|---|
+| P0-1 | Mobile layout | Shipped — sidebar stacks above content below 860px | `992748f` |
+| P0-2 | `/deal/[id]` manager delegation | Shipped | `0629b10` |
+| P0-3 | Schedule `expire_exclusivity` cron | Shipped — also fixed a real setup-order bug in `README.md` found during verification | `f80cdb6` |
+| P0-4 | Dashboards past Mechanism D | Shipped — one real bug caught and fixed in review (see below) | `8c60c39` |
+| P1-5 | Browse segmented control + price normalization | Shipped | `a92bf42` |
+| P1-6 | `/create`+`/login` role-mismatch | Shipped | `1ccfb6b`, `a92bf42` |
+| P1-7 | Manager band visibility on D confirmation | Shipped | `6ea020a` |
+| P2-8 | 48h response window | **No code change — brief's premise was stale.** `place_reservation`'s `p_response_window` has defaulted to `'48 hours'` since the RPC's original commit (`081afed`); the "24-48h" figure only ever existed as placeholder prose in `PRODUCT.md`, already narrowed by Handoff #2. | — |
+| P2-9 | Staleness badge | **Scope gap found and flagged to the founder before proceeding**: `performance_stats` has zero UI usage anywhere (no entry form, no display) — there was nothing to attach a badge to. Founder chose schema-only. | `eafe550` |
+| P3-10 | Reputation signal | Scoped by the orchestrator per the brief's own instruction (not executed blind), presented to the founder, approved, built. | `4e7a4fa` |
+| P3-11 | Admin dispute UI | Asked the founder directly per the brief's own instruction — deferred until first real dispute (`ROADMAP.md` §2.5 volume trigger). Not built. | — |
+
+Full diff across all shipped work: `git log --oneline bc13dcd..4e7a4fa` (9 commits). `docs/PRODUCT.md`
+§7 and `docs/ROLE_ACCESS_AND_UX_SPEC.md` Part 3 both carry their own inline revision notes tying
+each finding/question back to the specific commit that addressed it — check those directly rather
+than re-deriving from this table if you need the reasoning, not just the outcome.
+
+### The one real bug caught in review
+
+P0-4's dashboard extension initially flagged fresh, unanswered Mechanism C exclusivity grants
+(`negotiation IS NULL`) as "awaiting the creator's response." Tracing the actual UI gate in
+`listings/[id]/+page.svelte` showed the opposite: a null negotiation means the *advertiser* hasn't
+proposed terms yet, so it's their turn, not the creator's. Caught by diffing the subagent's filter
+logic against the already-shipped reference pattern rather than trusting its self-report; sent back
+with the exact file/line and the correct condition; fixed in one iteration. This is the kind of bug
+that would only have surfaced as a confusing, wrong "needs your attention" queue for real creators —
+worth remembering as a class of error (turn-taking logic inferred from schema shape rather than
+traced against the actual gating code) when reviewing similar work in the future.
+
+### Divergences from this brief's own assumptions (both flagged before proceeding, not silently patched)
+
+1. **P2-8** assumed a 24-48h range existed in code needing narrowing to 48h flat. It didn't — the
+   code was already correct, and had been since the feature's first commit. No subagent was
+   dispatched; dispatching one would have been busywork against a already-true premise.
+2. **P2-9** assumed a listing's performance-stats display already existed and just needed a
+   staleness badge added to it. It doesn't exist — `performance_stats` is a schema column with zero
+   UI reads or writes anywhere in the app. Flagged to the founder via `AskUserQuestion` before any
+   code was touched; he chose the minimal option (schema-only, defer the UI+badge as their own
+   future task) rather than have the orchestrator unilaterally expand scope to build a stats-entry
+   UI that wasn't asked for.
+
+### Verification caveats — read before trusting any of this without your own pass
+
+Live browser verification was inconsistently available throughout this session: a second,
+concurrent Claude Code session held the shared dev server's port for parts of the session, the
+Chrome extension was disconnected when tried, and several flows (manager delegation, dashboard
+A/C surfacing, D-confirmation band display) need real authenticated sessions that don't exist in
+this environment — the backend is a remote, non-empty Supabase project, auth is magic-link/passkey
+only, and no service-role key is available to seed test data. Where live verification wasn't
+possible, subagents fell back to: diffing against already-shipped, already-verified reference
+patterns (`listings/[id]`'s delegation/band/negotiation logic came up as the reference for three
+separate tasks), tracing the actual RPC/RLS logic line-by-line rather than assuming, and a clean
+`svelte-check`. That caught the one real bug above, but it is not the same evidentiary bar as a
+screenshot. **Before any pilot creator or advertiser touches this app, manually verify:**
+
+- Manager-delegation flows end-to-end (dispute flagging on `/deal/[id]`, band visibility and
+  rejection messaging on a D confirmation) with a real linked manager account.
+- Dashboard A/C surfacing with at least one real open offer and one real exclusivity grant.
+- Mobile layout on an actual phone, not just a resized desktop browser viewport.
+- The browse segmented control and price-info formatting against a real Mechanism-C listing with
+  no rate-card range set (none existed in seed data during this session).
+
+### Outstanding action: SQL changes need to be applied to the live Supabase project
+
+This repo's convention (`supabase/README.md`) is that `.sql` files are run manually via the
+Supabase SQL Editor — there is no auto-migration. Four files changed this session and need
+re-running against your live project (each is idempotent, safe to re-run in full): `schema.sql`,
+`listings.sql`, `rpc-delivery.sql`, `cron-scheduling.sql`. See `supabase/README.md`'s own
+top-of-file note for the exact reasoning per file. Nothing in the app will reflect this session's
+schema/RPC changes until this is done.
+
+### What's still genuinely open
+
+- The Founder/Admin dispute-resolution surface (task 11) — fully spec'd in
+  `docs/ROLE_ACCESS_AND_UX_SPEC.md`, deliberately not built, waiting on real dispute volume.
+- The manual performance-stat entry + display UI, and the staleness badge itself (task 9) — schema
+  is ready, nothing else is built.
+- Everything this brief's own "explicitly out of scope" section named, unchanged: Stripe Connect,
+  the sealed-bid tiebreaker, `ROADMAP.md` Phase 3, defaulting Mechanism D / featured rails, a full
+  review/rating system beyond the minimal count shipped this session.

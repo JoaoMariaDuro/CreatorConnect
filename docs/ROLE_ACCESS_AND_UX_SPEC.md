@@ -4,6 +4,8 @@
 
 *Produced July 2026 via a two-pass orchestrated review (access matrix, then UI/UX spec grounded in it) as a follow-on to Handoff #2's product/design/marketing review.*
 
+**Revision log (Handoff #3 execution, July 2026):** All five Part 3 punch-list items were picked up and resolved — see each item below for its outcome and the shipping commit. Full execution record, including what diverged from this doc's assumptions and what's still outstanding, is in `../handoffs/3rd.md`'s Completion Log.
+
 ---
 
 ## Part 1 — Role × Feature-Area × Access-Level Matrix
@@ -144,10 +146,10 @@ Every existing role can flag a dispute on their own deal and read only their own
 
 These are concrete, scoped items surfaced by this review, ready to hand to engineering:
 
-1. **Fix `/deal/[id]`'s missing manager-delegation check.** A manager's matrix-granted right to flag a dispute on a linked creator's behalf is currently unusable in the UI. Small, high-value fix — an existing security boundary (RLS/RPC) is already correct; only the frontend needs the same `isDelegatedManager` pattern `/listings/[id]` already has.
-2. **Extend both dashboards' "needs attention"/reservation queries beyond Mechanism D.** Creator and advertiser dashboards each only surface D-related activity today; A and C are fully wired at the RPC layer (a stale code comment claims otherwise) but invisible on the dashboard.
-3. **Fix two minor role-mismatched empty/redirect states:** `/create` should redirect advertisers rather than render a dead-end refusal page; `/browse`'s zero-listings CTA shouldn't tell an advertiser to "create one."
-4. **Add inline band visibility for managers on Mechanism D confirmation**, plus a distinct "send to creator" affordance on band-rejection, instead of surfacing a raw RPC error string.
-5. **Build the Founder/Admin surface** — `profiles.is_platform_admin` column, `is_platform_admin()` helper, `resolve_dispute_as_admin` RPC family, `/admin/disputes` + `/admin/disputes/[dealId]` routes, per Part 2. This is the single largest item here, but per the schema recommendation it's additive and doesn't touch existing tables/RLS beyond new `or public.is_platform_admin()` clauses.
+1. ~~**Fix `/deal/[id]`'s missing manager-delegation check.** A manager's matrix-granted right to flag a dispute on a linked creator's behalf is currently unusable in the UI. Small, high-value fix — an existing security boundary (RLS/RPC) is already correct; only the frontend needs the same `isDelegatedManager` pattern `/listings/[id]` already has.~~ **SHIPPED** (Handoff #3, commit `0629b10`) — same delegation check + acting-banner pattern added to `/deal/[id]`.
+2. ~~**Extend both dashboards' "needs attention"/reservation queries beyond Mechanism D.** Creator and advertiser dashboards each only surface D-related activity today; A and C are fully wired at the RPC layer (a stale code comment claims otherwise) but invisible on the dashboard.~~ **SHIPPED** (Handoff #3, commit `8c60c39`).
+3. ~~**Fix two minor role-mismatched empty/redirect states:** `/create` should redirect advertisers rather than render a dead-end refusal page; `/browse`'s zero-listings CTA shouldn't tell an advertiser to "create one."~~ **SHIPPED** (Handoff #3, commits `1ccfb6b`, `a92bf42`) — plus the intent-aware `/login` redirect for logged-out `/create` visitors, which Handoff #3's brief bundled into the same item.
+4. ~~**Add inline band visibility for managers on Mechanism D confirmation**, plus a distinct "send to creator" affordance on band-rejection, instead of surfacing a raw RPC error string.~~ **SHIPPED** (Handoff #3, commit `6ea020a`).
+5. **Build the Founder/Admin surface** — `profiles.is_platform_admin` column, `is_platform_admin()` helper, `resolve_dispute_as_admin` RPC family, `/admin/disputes` + `/admin/disputes/[dealId]` routes, per Part 2. This is the single largest item here, but per the schema recommendation it's additive and doesn't touch existing tables/RLS beyond new `or public.is_platform_admin()` clauses. **DEFERRED** — asked the founder directly during Handoff #3 execution; he chose to wait for the first real dispute (matches `ROADMAP.md` §2.5's volume-trigger framing) rather than build it as insurance now. Still fully spec'd and ready to build the moment that trigger fires.
 
-Items 1–4 are UI-completeness fixes to security boundaries that already work correctly server-side — none of them are security holes, all of them are places where the UI doesn't yet reflect what the access matrix already grants or restricts. Item 5 is genuinely net-new.
+Items 1–4 are UI-completeness fixes to security boundaries that already work correctly server-side — none of them are security holes, all of them are places where the UI doesn't yet reflect what the access matrix already grants or restricts. Item 5 is genuinely net-new, and remains not-yet-built by explicit founder choice, not oversight.
