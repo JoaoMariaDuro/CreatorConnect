@@ -30,11 +30,13 @@ create table if not exists public.profiles (
   completed_deals_count   int         not null default 0,
   stripe_connect_account_id text,
   stripe_customer_id      text,
+  is_platform_admin       boolean     not null default false,
   created_at              timestamptz not null default now(),
   updated_at              timestamptz not null default now()
 );
 
 alter table public.profiles add column if not exists completed_deals_count int not null default 0;
+alter table public.profiles add column if not exists is_platform_admin boolean not null default false;
 
 alter table public.profiles enable row level security;
 
@@ -89,4 +91,13 @@ create trigger on_auth_user_created
 create or replace function public.is_authorized_for_creator(creator_id uuid)
 returns boolean language sql stable as $$
   select auth.uid() = creator_id;
+$$;
+
+-- Founder/admin check, mirroring is_authorized_for_creator() above. Gates new RLS select policies
+-- plus the `_as_admin`-suffixed security definer RPCs — see rpc-admin.sql. No new role tier, no
+-- impersonation: the founder authenticates as themselves, and this just reads a boolean off their
+-- own profiles row.
+create or replace function public.is_platform_admin()
+returns boolean language sql stable as $$
+  select coalesce((select is_platform_admin from public.profiles where id = auth.uid()), false);
 $$;

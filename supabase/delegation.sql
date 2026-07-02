@@ -92,7 +92,7 @@ alter table public.audit_log enable row level security;
 drop policy if exists "creator reads own audit trail" on public.audit_log;
 create policy "creator reads own audit trail" on public.audit_log
   for select
-  using (acting_as_id = auth.uid() or actor_id = auth.uid());
+  using (acting_as_id = auth.uid() or actor_id = auth.uid() or public.is_platform_admin());
 
 create table if not exists public.notifications (
   id          uuid        primary key default gen_random_uuid(),

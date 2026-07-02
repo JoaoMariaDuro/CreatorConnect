@@ -34,6 +34,9 @@ exists`, `drop policy if exists` before `create policy`) so re-running one after
     `release_delivery_balance`, and `expire_exclusivity` to run every 5 minutes via `pg_cron`.
     **Requires enabling the pg_cron extension first**: Database → Extensions → search "pg_cron" →
     Enable, in the Supabase dashboard, before running this file.
+11. [`rpc-admin.sql`](./rpc-admin.sql) — `resolve_dispute_as_admin`, the founder/admin dispute
+    resolution RPC gated by `schema.sql`'s `is_platform_admin()`. Depends on `deals` (`deals.sql`),
+    `audit_log` (`delegation.sql`), and `is_platform_admin()` (`schema.sql`), so it runs last.
 
 ## Then: get the app talking to it
 
@@ -49,6 +52,17 @@ exists`, `drop policy if exists` before `create policy`) so re-running one after
    want, disable Confirm email so the first-time signup lands the user straight into the app.
 4. Auth → URL Configuration → add `http://localhost:5173/auth/confirm` (and your deployed origin,
    later) to the **Redirect URLs** allow-list — the magic link won't work without this.
+5. Grant yourself founder/admin access, one time, by hand — there is deliberately no in-app or
+   self-service way to do this (see `docs/ROLE_ACCESS_AND_UX_SPEC.md`). After you've signed up once:
+   1. Find your own user id: Supabase dashboard → Authentication → Users (copy the UUID next to your
+      email), or run `select id, email from auth.users;` in the SQL Editor and find your row.
+   2. In the SQL Editor, run (with your real id in place of the placeholder):
+      ```sql
+      update public.profiles set is_platform_admin = true where id = '<your own user id>';
+      ```
+   3. That's it — no redeploy needed. `is_platform_admin()` (`schema.sql`) reads this column live, so
+      the new admin RLS policies and `resolve_dispute_as_admin` (`rpc-admin.sql`) pick it up on your
+      next request.
 
 ## What's NOT here yet
 
@@ -57,7 +71,8 @@ exists`, `drop policy if exists` before `create policy`) so re-running one after
   state machine, just no real money yet.
 - **The sealed-bid tiebreaker's RPCs** — deliberately deferred to Phase 1.5 per the roadmap; the
   tables exist, `place_reservation` currently just rejects contention outright.
-- **Disputed deals still resolve manually** — `cron-scheduling.sql`'s auto-release only fires for
-  non-disputed deals (`release_delivery_balance` already checks and skips disputed ones); resolving
-  an actual dispute is founder-mediated via direct SQL/dashboard access, on purpose, per PRODUCT.md's
-  "no self-service arbitration in v1."
+- **Disputed deals resolve via founder/admin action, not self-service** — `cron-scheduling.sql`'s
+  auto-release only fires for non-disputed deals (`release_delivery_balance` already checks and skips
+  disputed ones); resolving an actual dispute now goes through `rpc-admin.sql`'s
+  `resolve_dispute_as_admin`, callable only by the founder (gated by `is_platform_admin()`), on
+  purpose, per PRODUCT.md's "no self-service arbitration in v1."

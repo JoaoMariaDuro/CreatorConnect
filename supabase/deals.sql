@@ -57,6 +57,7 @@ create policy "parties see own deal" on public.deals
     or advertiser_id = auth.uid()
     or manager_id = auth.uid()
     or public.is_authorized_for_creator(creator_id)
+    or public.is_platform_admin()
   );
 
 create index if not exists deals_creator_idx on public.deals (creator_id);
@@ -83,6 +84,6 @@ create policy "parties read own escrow state" on public.escrow_transactions
     select 1 from public.deals d
     where d.id = deal_id
       and (d.creator_id = auth.uid() or d.advertiser_id = auth.uid() or d.manager_id = auth.uid())
-  ));
+  ) or public.is_platform_admin());
 -- Deliberately NO insert/update/delete policy for the authenticated role — writes only ever happen
 -- via the service role from the Stripe webhook handler, which bypasses RLS entirely.
