@@ -31,6 +31,7 @@ create table if not exists public.creator_listings (
   rate_card_high_cents  int,
 
   performance_stats      jsonb       not null default '{}'::jsonb, -- manual entry, MVP
+  performance_stats_updated_at timestamptz, -- null until creator first enters stats; signals staleness vs. not-yet-entered
   audience_demographics  jsonb       not null default '{}'::jsonb,
 
   status  text  not null default 'draft'
@@ -45,6 +46,8 @@ create table if not exists public.creator_listings (
     (pricing_mechanism = 'D' and reservation_deadline is not null and floor_price_cents is not null)
   )
 );
+
+alter table public.creator_listings add column if not exists performance_stats_updated_at timestamptz;
 
 alter table public.creator_listings enable row level security;
 
