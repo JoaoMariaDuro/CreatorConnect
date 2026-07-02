@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { formatMoney, formatDate, type Mechanism } from '$lib/format';
 	import Badges from '$lib/Badges.svelte';
 
@@ -15,26 +16,43 @@
 		})
 	);
 
-	function priceInfo(l: any): string {
+	const mechanismTabs: { value: 'all' | Mechanism; label: string }[] = [
+		{ value: 'all', label: 'All' },
+		{ value: 'D', label: 'Reserve Now (D)' },
+		{ value: 'A', label: 'Negotiate (A)' },
+		{ value: 'C', label: 'Early Access (C)' }
+	];
+
+	function priceInfo(l: any): { text: string; isPrice: boolean } {
 		if (l.pricing_mechanism === 'A') {
-			return l.status === 'deal' ? 'Deal confirmed' : `Asking ${formatMoney(l.floor_price_cents ?? 0)}`;
+			return l.status === 'deal'
+				? { text: 'Deal confirmed', isPrice: false }
+				: { text: `Asking ${formatMoney(l.floor_price_cents ?? 0)}`, isPrice: true };
 		}
 		if (l.pricing_mechanism === 'C') {
-			if (l.status === 'deal') return 'Deal confirmed';
+			if (l.status === 'deal') return { text: 'Deal confirmed', isPrice: false };
 			if (l.rate_card_low_cents && l.rate_card_high_cents) {
-				return `~${formatMoney(l.rate_card_low_cents)}–${formatMoney(l.rate_card_high_cents)}`;
+				return {
+					text: `~${formatMoney(l.rate_card_low_cents)}–${formatMoney(l.rate_card_high_cents)}`,
+					isPrice: true
+				};
 			}
-			return 'Rate negotiated bilaterally';
+			return { text: 'Rate negotiated bilaterally', isPrice: false };
 		}
 		if (l.pricing_mechanism === 'D') {
-			return l.status === 'deal' ? 'Deal confirmed' : `Floor ${formatMoney(l.floor_price_cents ?? 0)}`;
+			return l.status === 'deal'
+				? { text: 'Deal confirmed', isPrice: false }
+				: { text: `Floor ${formatMoney(l.floor_price_cents ?? 0)}`, isPrice: true };
 		}
-		return '';
+		return { text: '', isPrice: false };
 	}
 </script>
 
 <div class="container">
 	<h1>Browse Sponsorship Slots</h1>
+	{#if page.url.searchParams.get('notice') === 'advertiser-cannot-create'}
+		<p class="muted">Only creators and managers can create listings — browse what's live instead.</p>
+	{/if}
 	<p class="muted">Reserve tomorrow's sponsorship slots today. Every listing shows its pricing mechanism up front.</p>
 
 	<div class="row" style="margin: 16px 0 24px;">
@@ -48,13 +66,21 @@
 			</select>
 		</div>
 		<div class="field" style="margin-bottom:0;">
-			<label for="mechanism-filter">Mechanism</label>
-			<select id="mechanism-filter" bind:value={mechanismFilter}>
-				<option value="all">All mechanisms</option>
-				<option value="A">A — Fixed Price + Counter-Offer</option>
-				<option value="C">C — Reserve-the-Relationship</option>
-				<option value="D">D — Reserve-the-Slot</option>
-			</select>
+			<span class="mechanism-tabs-label">Mechanism</span>
+			<div class="mechanism-tabs" role="tablist" aria-label="Filter by mechanism">
+				{#each mechanismTabs as tab (tab.value)}
+					<button
+						type="button"
+						class="mechanism-tab"
+						class:active={mechanismFilter === tab.value}
+						role="tab"
+						aria-selected={mechanismFilter === tab.value}
+						onclick={() => (mechanismFilter = tab.value)}
+					>
+						{tab.label}
+					</button>
+				{/each}
+			</div>
 		</div>
 	</div>
 
@@ -69,6 +95,7 @@
 	{:else}
 		<div class="grid">
 			{#each filtered as listing (listing.id)}
+				{@const price = priceInfo(listing)}
 				<a class="card listing-card" href={`/listings/${listing.id}`}>
 					<div class="row" style="justify-content: space-between; margin-bottom: 8px;">
 						<Badges mechanism={listing.pricing_mechanism} />
@@ -89,7 +116,11 @@
 					<div class="muted" style="font-size:13px; margin-bottom:10px;">{listing.availability_window}</div>
 					<hr class="sep" />
 					<div class="row" style="justify-content: space-between;">
-						<strong>{priceInfo(listing)}</strong>
+						{#if price.isPrice}
+							<strong>{price.text}</strong>
+						{:else}
+							<span class="price-info-muted">{price.text}</span>
+						{/if}
 						<span class="muted" style="font-size:12px;">{formatDate(listing.created_at)}</span>
 					</div>
 				</a>
@@ -109,5 +140,44 @@
 		border-color: var(--accent);
 		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 		text-decoration: none;
+	}
+	.mechanism-tabs-label {
+		display: block;
+		font-size: 13px;
+		font-weight: 500;
+		color: var(--text-muted);
+		margin-bottom: 6px;
+	}
+	.mechanism-tabs {
+		display: inline-flex;
+		gap: 4px;
+		padding: 4px;
+		background: var(--panel-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+	}
+	.mechanism-tab {
+		background: none;
+		border: none;
+		border-radius: calc(var(--radius) - 2px);
+		padding: 6px 12px;
+		font-size: 13px;
+		font-weight: 500;
+		color: var(--text-muted);
+		cursor: pointer;
+		white-space: nowrap;
+		transition: background 0.15s, color 0.15s;
+	}
+	.mechanism-tab:hover {
+		color: var(--text);
+	}
+	.mechanism-tab.active {
+		background: var(--accent-bg);
+		color: var(--accent-dark);
+	}
+	.price-info-muted {
+		font-size: 12px;
+		font-weight: 400;
+		color: var(--text-muted);
 	}
 </style>
