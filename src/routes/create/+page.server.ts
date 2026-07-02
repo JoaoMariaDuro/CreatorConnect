@@ -1,15 +1,15 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
-// Creators and managers only — advertisers get bounced with a message from the page itself
-// (still allowed to view /create, just told to switch roles, matching the original prototype UX).
+// Creators and managers only — advertisers are redirected server-side before /create ever renders.
 export const load: PageServerLoad = async ({ locals: { safeGetSession, supabase } }) => {
 	const { user } = await safeGetSession();
-	if (!user) redirect(303, '/login');
+	if (!user) redirect(303, '/login?intent=creator');
 
 	let roster: { id: string; display_name: string }[] = [];
 	if (supabase) {
 		const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+		if (profile?.role === 'advertiser') redirect(303, '/browse?notice=advertiser-cannot-create');
 		if (profile?.role === 'manager') {
 			const { data } = await supabase
 				.from('manager_creator_links')

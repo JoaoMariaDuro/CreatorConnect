@@ -80,6 +80,9 @@
 		{#if page.url.searchParams.get('error') === 'expired'}
 			<p class="warn">That link was invalid or expired. Request a fresh one.</p>
 		{/if}
+		{#if page.url.searchParams.get('intent') === 'creator'}
+			<p class="sub">Sign in to create your first listing.</p>
+		{/if}
 		{#if sent}
 			<p class="ok">
 				Check your inbox — we sent a magic link to <b>{email}</b>. Click it to sign in.
