@@ -51,6 +51,7 @@ export const load: PageServerLoad = async ({ params, locals: { safeGetSession, s
 	// shows (this is a UI-gating convenience, not the actual security boundary).
 	let isDelegatedManager = false;
 	let ownerManagerBands: any[] = [];
+	let myBand: { auto_accept_floor_cents: number | null; isDefault: boolean } | null = null;
 	if (listing) {
 		const { user } = await safeGetSession();
 		if (user && user.id !== listing.creator_id) {
@@ -62,6 +63,35 @@ export const load: PageServerLoad = async ({ params, locals: { safeGetSession, s
 				.eq('status', 'active')
 				.maybeSingle();
 			isDelegatedManager = !!link;
+
+			if (isDelegatedManager) {
+				// Mirror check_price_band()'s exact fallback order (rpc-mechanism-d.sql lines 15-42):
+				// 1) per-listing band (listing_price_bands, this manager + this listing)
+				// 2) else the creator's per-manager default (manager_creator_links.default_auto_accept_floor_cents)
+				// 3) else no band applies at all — fail closed, same as the RPC.
+				const { data: ownBand } = await supabase
+					.from('listing_price_bands')
+					.select('auto_accept_floor_cents')
+					.eq('listing_id', params.id)
+					.eq('manager_id', user.id)
+					.maybeSingle();
+
+				if (ownBand?.auto_accept_floor_cents != null) {
+					myBand = { auto_accept_floor_cents: ownBand.auto_accept_floor_cents, isDefault: false };
+				} else {
+					const { data: defaultLink } = await supabase
+						.from('manager_creator_links')
+						.select('default_auto_accept_floor_cents')
+						.eq('manager_id', user.id)
+						.eq('creator_id', listing.creator_id)
+						.eq('status', 'active')
+						.maybeSingle();
+
+					myBand = defaultLink?.default_auto_accept_floor_cents != null
+						? { auto_accept_floor_cents: defaultLink.default_auto_accept_floor_cents, isDefault: true }
+						: null;
+				}
+			}
 		} else if (user && user.id === listing.creator_id) {
 			// Owner viewing their own listing: load active managers + any existing per-listing band,
 			// so they can set "auto-accept ≥ $X for this listing" per manager (schema.sql's
@@ -83,5 +113,5 @@ export const load: PageServerLoad = async ({ params, locals: { safeGetSession, s
 		}
 	}
 
-	return { listing, reservation, offers, grant, isDelegatedManager, ownerManagerBands };
+	return { listing, reservation, offers, grant, isDelegatedManager, ownerManagerBands, myBand };
 };

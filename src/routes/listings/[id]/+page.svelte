@@ -75,7 +75,16 @@
 		});
 		confirming = false;
 		if (error) {
-			confirmErr = error.message;
+			// The RPC's manager-band rejection ("price % is outside the manager's authorized band —
+			// needs creator confirmation", rpc-mechanism-d.sql's confirm_deal_as) is a distinct, expected
+			// case for a delegated manager — give it a friendly, actionable message instead of the raw
+			// Postgres error text. Every other error (below listing floor, reservation not held, etc.)
+			// still surfaces raw, as before.
+			if (error.message?.includes('authorized band')) {
+				confirmErr = `This is below your authorized floor — send to ${listing.creator?.display_name} for confirmation instead.`;
+			} else {
+				confirmErr = error.message;
+			}
 			return;
 		}
 		goto(`/deal/${deal.id}`);
@@ -303,6 +312,16 @@
 
 							{#if reservation.status === 'held' && isOwnerOrManager}
 								<hr class="sep" />
+								{#if data.isDelegatedManager}
+									{#if data.myBand}
+										<div class="kv">
+											<span class="muted">Your authorized floor {data.myBand.isDefault ? '(creator default)' : 'for this listing'}</span>
+											<strong>{formatMoney(data.myBand.auto_accept_floor_cents ?? 0)}</strong>
+										</div>
+									{:else}
+										<p class="muted" style="font-size:13px;">No authorized band set for this listing — your confirmation will need the creator's approval.</p>
+									{/if}
+								{/if}
 								<p class="muted" style="font-size:13px;">Confirm the final price (must be at or above the floor price):</p>
 								<div class="field">
 									<label for="final-price">Final price ($)</label>
