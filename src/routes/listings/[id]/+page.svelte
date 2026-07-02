@@ -19,6 +19,28 @@
 		(!!user && !!listing && user.id === listing.creator_id) || data.isDelegatedManager
 	);
 	const isAdvertiser = $derived(profile?.role === 'advertiser');
+	const isOwner = $derived(!!user && !!listing && user.id === listing.creator_id);
+
+	let bandDrafts = $state<Record<string, string>>({});
+	let savingBand = $state<string | null>(null);
+	let bandErr = $state('');
+
+	async function saveBand(managerId: string) {
+		if (!listing || !supabase) return;
+		const raw = bandDrafts[managerId];
+		if (!raw) return;
+		savingBand = managerId;
+		bandErr = '';
+		const { error } = await supabase
+			.from('listing_price_bands')
+			.upsert(
+				{ listing_id: listing.id, manager_id: managerId, auto_accept_floor_cents: Math.round(Number(raw) * 100) },
+				{ onConflict: 'listing_id,manager_id' }
+			);
+		savingBand = null;
+		if (error) { bandErr = error.message; return; }
+		await invalidateAll();
+	}
 
 	let showReserveConfirm = $state(false);
 	let reserving = $state(false);
@@ -115,6 +137,37 @@
 					<strong>How Mechanism {listing.pricing_mechanism} works:</strong>
 					<p class="muted" style="margin:6px 0 0;">{mechanismShortExplainer[listing.pricing_mechanism as 'A' | 'C' | 'D']}</p>
 				</div>
+
+				{#if isOwner && data.ownerManagerBands?.length}
+					<div class="card">
+						<h3 style="margin-top:0;">Manager auto-accept bands</h3>
+						<p class="muted" style="font-size:13px;">
+							A linked manager can confirm a price on your behalf without asking, as long as it's at or
+							above this floor for this specific listing. No band set means that manager can't confirm
+							this listing at all — they'll need to ask you directly.
+						</p>
+						{#each data.ownerManagerBands as b}
+							<div class="field" style="margin-top:10px;">
+								<label for={`band-${b.manager.id}`}>{b.manager.display_name}</label>
+								<div class="row">
+									<input
+										id={`band-${b.manager.id}`}
+										type="number"
+										placeholder={b.auto_accept_floor_cents ? String(b.auto_accept_floor_cents / 100) : 'No band set'}
+										bind:value={bandDrafts[b.manager.id]}
+									/>
+									<button class="btn btn-sm" onclick={() => saveBand(b.manager.id)} disabled={savingBand === b.manager.id || !bandDrafts[b.manager.id]}>
+										{savingBand === b.manager.id ? 'Saving…' : 'Save'}
+									</button>
+								</div>
+								{#if b.auto_accept_floor_cents}
+									<span class="hint">Currently: auto-accept ≥ {formatMoney(b.auto_accept_floor_cents)}</span>
+								{/if}
+							</div>
+						{/each}
+						{#if bandErr}<p class="warn">{bandErr}</p>{/if}
+					</div>
+				{/if}
 			</div>
 
 			<div class="stack">
