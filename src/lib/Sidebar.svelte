@@ -42,7 +42,12 @@
 		passkeyMsg = '';
 		const { error } = await supabase.auth.registerPasskey();
 		addingPasskey = false;
-		passkeyMsg = error ? 'Could not add passkey.' : 'Passkey added.';
+		if (error) {
+			console.error('registerPasskey failed:', error);
+			passkeyMsg = `Could not add passkey: ${error.message}`;
+		} else {
+			passkeyMsg = 'Passkey added.';
+		}
 	}
 </script>
 
