@@ -1,28 +1,16 @@
 <script lang="ts">
-	import {
-		viewerState,
-		setViewer,
-		setActingAsCreator,
-		creators,
-		advertisers,
-		managers,
-		getManager
-	} from '$lib/store.svelte';
+	import { page } from '$app/state';
+	import { goto, invalidate } from '$app/navigation';
 
-	const viewer = $derived(viewerState.current);
+	const user = $derived(page.data.user);
+	const profile = $derived(page.data.profile);
+	const supabase = $derived(page.data.supabase);
 
-	function onViewerSelect(e: Event) {
-		const value = (e.target as HTMLSelectElement).value;
-		const [role, id] = value.split(':');
-		setViewer({ role, id } as any);
+	async function signOut() {
+		await supabase?.auth.signOut();
+		await invalidate('supabase:auth');
+		goto('/');
 	}
-
-	function onActingAsSelect(e: Event) {
-		const value = (e.target as HTMLSelectElement).value;
-		setActingAsCreator(value || undefined);
-	}
-
-	const currentManager = $derived(viewer.role === 'manager' ? getManager(viewer.id) : undefined);
 </script>
 
 <header>
@@ -30,43 +18,24 @@
 		<a class="logo" href="/">CreatorConnect</a>
 		<nav>
 			<a href="/">Browse</a>
-			<a href="/dashboard">Dashboard</a>
-			<a href="/create">Create Listing</a>
+			{#if user}
+				<a href="/dashboard">Dashboard</a>
+				{#if profile?.role === 'creator' || profile?.role === 'manager'}
+					<a href="/create">Create Listing</a>
+				{/if}
+			{/if}
 		</nav>
-		<div class="viewer-switcher">
-			<label for="viewer-select" class="muted" style="font-size:12px;">Viewing as</label>
-			<select id="viewer-select" value={`${viewer.role}:${viewer.id}`} onchange={onViewerSelect}>
-				<optgroup label="Creators">
-					{#each creators as c (c.id)}
-						<option value={`creator:${c.id}`}>{c.name}</option>
-					{/each}
-				</optgroup>
-				<optgroup label="Advertisers">
-					{#each advertisers as a (a.id)}
-						<option value={`advertiser:${a.id}`}>{a.company}</option>
-					{/each}
-				</optgroup>
-				<optgroup label="Managers">
-					{#each managers as m (m.id)}
-						<option value={`manager:${m.id}`}>{m.name} ({m.agency})</option>
-					{/each}
-				</optgroup>
-			</select>
-
-			{#if viewer.role === 'manager' && currentManager}
-				<select
-					value={viewer.actingAsCreatorId ?? ''}
-					onchange={onActingAsSelect}
-					title="Acting as creator"
-				>
-					<option value="">— roster view —</option>
-					{#each currentManager.creatorIds as cid}
-						{@const c = creators.find((x) => x.id === cid)}
-						{#if c}
-							<option value={cid}>Acting as {c.name}</option>
-						{/if}
-					{/each}
-				</select>
+		<div class="auth-area">
+			{#if user && profile}
+				<span class="who">
+					<strong>{profile.display_name}</strong>
+					<span class="role-badge">{profile.role}</span>
+				</span>
+				<button class="ghost" onclick={signOut}>Sign out</button>
+			{:else if user && !profile}
+				<span class="muted" style="font-size:13px;">Setting up your profile…</span>
+			{:else}
+				<a class="btn btn-primary" href="/login">Sign in</a>
 			{/if}
 		</div>
 	</div>
@@ -107,17 +76,34 @@
 		color: var(--text);
 		text-decoration: none;
 	}
-	.viewer-switcher {
+	.auth-area {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+	.who {
 		display: flex;
 		align-items: center;
 		gap: 8px;
+		font-size: 14px;
 	}
-	select {
-		font-family: inherit;
+	.role-badge {
+		font-size: 11px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		background: #eef2ff;
+		color: #4338ca;
+		padding: 2px 8px;
+		border-radius: 999px;
+	}
+	.ghost {
+		background: none;
+		border: none;
+		color: var(--text-muted);
+		cursor: pointer;
 		font-size: 13px;
-		padding: 6px 8px;
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		background: #fff;
+		text-decoration: underline;
+		padding: 0;
 	}
 </style>

@@ -1,139 +1,88 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
-	import {
-		getListing,
-		getCreator,
-		getAdvertiser,
-		getManager,
-		viewerState,
-		canManageCreator,
-		formatMoney,
-		formatDateTime,
-		formatDate,
-		mechanismShortExplainer,
-		submitOffer,
-		acceptOffer,
-		requestExclusivity,
-		proposeTerms,
-		acceptNegotiation,
-		reserveSlot,
-		confirmFinalPrice,
-		advertisers
-	} from '$lib/store.svelte';
+	import { goto, invalidateAll } from '$app/navigation';
+	import { formatMoney, formatDateTime, formatDate, mechanismShortExplainer } from '$lib/format';
 	import Badges from '$lib/Badges.svelte';
 
-	const listingId = $derived(page.params.id ?? '');
-	const listing = $derived(getListing(listingId));
-	const creator = $derived(listing ? getCreator(listing.creatorId) : undefined);
-	const viewer = $derived(viewerState.current);
+	let { data } = $props();
 
-	const isManagingCreator = $derived(listing ? canManageCreator(viewer, listing.creatorId) : false);
-	const isAdvertiser = $derived(viewer.role === 'advertiser');
-	const managerActingLabel = $derived(
-		viewer.role === 'manager' && listing && canManageCreator(viewer, listing.creatorId)
-			? `Acting as ${getManager(viewer.id)?.name} on behalf of ${creator?.name}`
-			: null
-	);
+	const listing = $derived(data.listing);
+	const reservation = $derived(data.reservation);
+	const user = $derived(page.data.user);
+	const profile = $derived(page.data.profile);
+	const supabase = $derived(page.data.supabase);
 
-	// as-advertiser identity: if viewer is an advertiser, use their id; otherwise default to first advertiser for demo purposes
-	const demoAdvertiserId = $derived(isAdvertiser ? viewer.id : advertisers[0].id);
+	const isOwnerOrManager = $derived(!!user && !!listing && user.id === listing.creator_id);
+	// Full manager-delegation checking (manager_creator_links lookup) isn't wired into this page yet —
+	// creators acting on their own listings works end-to-end now; manager "confirm on behalf of"
+	// lands with mechanism A/C's RPCs in Phase 1-FastFollow, matching confirm_deal_as's design
+	// (it already accepts a manager caller, this page just doesn't surface that path yet).
+	const isAdvertiser = $derived(profile?.role === 'advertiser');
 
-	// ---- Mechanism A state ----
-	let offerAmount = $state('');
-	let offerNote = $state('');
-
-	function submitAdvertiserOffer() {
-		if (!listing || !offerAmount) return;
-		submitOffer(listing, 'advertiser', Number(offerAmount), offerNote, demoAdvertiserId);
-		offerAmount = '';
-		offerNote = '';
-	}
-
-	function submitCreatorCounter() {
-		if (!listing || !offerAmount) return;
-		submitOffer(listing, 'creator', Number(offerAmount), offerNote);
-		offerAmount = '';
-		offerNote = '';
-	}
-
-	function handleAccept(offer: any) {
-		if (!listing) return;
-		const advertiserId = (listing as any)._advertiserId ?? demoAdvertiserId;
-		acceptOffer(listing, offer, advertiserId);
-	}
-
-	// ---- Mechanism C state ----
-	let negotiationPrice = $state('');
-	let negotiationTerms = $state('');
-
-	function doRequestExclusivity() {
-		if (!listing) return;
-		requestExclusivity(listing, demoAdvertiserId);
-	}
-
-	function submitProposal(from: 'advertiser' | 'creator') {
-		if (!listing || !negotiationPrice) return;
-		proposeTerms(listing, from, Number(negotiationPrice), negotiationTerms || listing.description);
-		negotiationPrice = '';
-		negotiationTerms = '';
-	}
-
-	function doAcceptNegotiation() {
-		if (!listing) return;
-		acceptNegotiation(listing);
-	}
-
-	// ---- Mechanism D state ----
-	let confirmedPrice = $state('');
 	let showReserveConfirm = $state(false);
+	let reserving = $state(false);
+	let reserveErr = $state('');
 
-	function doReserve() {
-		if (!listing) return;
-		reserveSlot(listing, demoAdvertiserId);
+	async function doReserve() {
+		if (!listing || !supabase) return;
+		reserving = true;
+		reserveErr = '';
+		const { error } = await supabase.rpc('place_reservation', { p_listing_id: listing.id });
+		reserving = false;
 		showReserveConfirm = false;
-		reserveToast = true;
-		setTimeout(() => (reserveToast = false), 3000);
+		if (error) {
+			reserveErr = error.message;
+			return;
+		}
+		await invalidateAll();
 	}
 
-	let reserveToast = $state(false);
+	let confirmedPrice = $state('');
+	let confirming = $state(false);
+	let confirmErr = $state('');
 
-	function doConfirmPrice() {
-		if (!listing || !confirmedPrice) return;
-		confirmFinalPrice(listing, Number(confirmedPrice));
-		confirmedPrice = '';
-	}
-
-	function goToDeal() {
-		if (listing?.status === 'deal') goto(`/deal/${listing.id}`);
+	async function doConfirmPrice() {
+		if (!listing || !reservation || !supabase || !confirmedPrice) return;
+		confirming = true;
+		confirmErr = '';
+		const { data: deal, error } = await supabase.rpc('confirm_deal_as', {
+			p_creator_id: listing.creator_id,
+			p_reservation_id: reservation.id,
+			p_price_cents: Math.round(Number(confirmedPrice) * 100)
+		});
+		confirming = false;
+		if (error) {
+			confirmErr = error.message;
+			return;
+		}
+		goto(`/deal/${deal.id}`);
 	}
 </script>
 
 <div class="container">
-	{#if !listing || !creator}
+	{#if !listing}
 		<div class="empty">Listing not found.</div>
 	{:else}
 		<a href="/" class="back-link">&larr; Back to listings</a>
 
 		<div class="row" style="justify-content: space-between; align-items: flex-start; margin: 10px 0 4px;">
 			<div>
-				<h1 style="margin-bottom:4px;">{creator.name} — {listing.contentType} on {listing.platform}</h1>
-				<div class="muted">{creator.handle} · {creator.followers.toLocaleString()} followers · {creator.niche}</div>
+				<h1 style="margin-bottom:4px;">{listing.creator?.display_name} — {listing.content_type} on {listing.platform}</h1>
+				<div class="muted">
+					{listing.creator?.handle ?? ''} · {(listing.creator?.follower_count ?? 0).toLocaleString()} followers
+					{#if listing.creator?.niche_tags?.length}
+						· {listing.creator.niche_tags.join(', ')}
+					{/if}
+				</div>
 			</div>
 			<div class="row">
-				<Badges mechanism={listing.mechanism} />
+				<Badges mechanism={listing.pricing_mechanism} />
 				<Badges status={listing.status} />
 			</div>
 		</div>
 
-		{#if managerActingLabel}
-			<div class="acting-banner">{managerActingLabel}</div>
-		{/if}
-
 		{#if listing.status === 'deal'}
-			<div class="deal-banner">
-				This listing is a confirmed deal. <a href={`/deal/${listing.id}`}>View contract summary &rarr;</a>
-			</div>
+			<div class="deal-banner">This listing is a confirmed deal.</div>
 		{/if}
 
 		<div class="detail-grid">
@@ -141,241 +90,93 @@
 				<div class="card">
 					<h3 style="margin-top:0;">Listing details</h3>
 					<p>{listing.description}</p>
-					<div class="kv"><span class="muted">Availability window</span><strong>{listing.availabilityWindow}</strong></div>
+					<div class="kv"><span class="muted">Availability window</span><strong>{listing.availability_window}</strong></div>
 					<div class="kv"><span class="muted">Platform</span><strong>{listing.platform}</strong></div>
-					<div class="kv"><span class="muted">Content type</span><strong>{listing.contentType}</strong></div>
-					{#if listing.mechanism === 'A'}
-						<div class="kv"><span class="muted">Asking price</span><strong>{formatMoney(listing.askingPrice ?? 0)}</strong></div>
-					{:else if listing.mechanism === 'C'}
-						<div class="kv"><span class="muted">Exclusivity window</span><strong>{listing.exclusivityWindowDays} days</strong></div>
-						{#if listing.rateCardRangeLow && listing.rateCardRangeHigh}
-							<div class="kv"><span class="muted">Rate-card range (context)</span><strong>{formatMoney(listing.rateCardRangeLow)}–{formatMoney(listing.rateCardRangeHigh)}</strong></div>
+					<div class="kv"><span class="muted">Content type</span><strong>{listing.content_type}</strong></div>
+					{#if listing.pricing_mechanism === 'A'}
+						<div class="kv"><span class="muted">Asking price</span><strong>{formatMoney(listing.floor_price_cents ?? 0)}</strong></div>
+					{:else if listing.pricing_mechanism === 'C'}
+						<div class="kv"><span class="muted">Exclusivity window</span><strong>{listing.exclusivity_window}</strong></div>
+						{#if listing.rate_card_low_cents && listing.rate_card_high_cents}
+							<div class="kv"><span class="muted">Rate-card range (context)</span><strong>{formatMoney(listing.rate_card_low_cents)}–{formatMoney(listing.rate_card_high_cents)}</strong></div>
 						{/if}
-					{:else if listing.mechanism === 'D'}
-						<div class="kv"><span class="muted">Floor price</span><strong>{formatMoney(listing.floorPrice ?? 0)}</strong></div>
-						<div class="kv"><span class="muted">Reservation deadline</span><strong>{formatDate(listing.reservationDeadline ?? '')}</strong></div>
+					{:else if listing.pricing_mechanism === 'D'}
+						<div class="kv"><span class="muted">Floor price</span><strong>{formatMoney(listing.floor_price_cents ?? 0)}</strong></div>
+						<div class="kv"><span class="muted">Reservation deadline</span><strong>{formatDate(listing.reservation_deadline ?? '')}</strong></div>
 					{/if}
 				</div>
 
 				<div class="card explainer">
-					<strong>How Mechanism {listing.mechanism} works:</strong>
-					<p class="muted" style="margin:6px 0 0;">{mechanismShortExplainer[listing.mechanism]}</p>
+					<strong>How Mechanism {listing.pricing_mechanism} works:</strong>
+					<p class="muted" style="margin:6px 0 0;">{mechanismShortExplainer[listing.pricing_mechanism as 'A' | 'C' | 'D']}</p>
 				</div>
 			</div>
 
 			<div class="stack">
-				<!-- ===================== MECHANISM A ===================== -->
-				{#if listing.mechanism === 'A'}
-					<div class="card">
-						<h3 style="margin-top:0;">Offer thread</h3>
-						{#if !listing.offers || listing.offers.length === 0}
-							<p class="muted">No offers yet.</p>
-							{#if isAdvertiser || (!isManagingCreator && !isAdvertiser)}
-								<div class="field">
-									<label for="offer-amount">Make an offer ($)</label>
-									<input id="offer-amount" type="number" bind:value={offerAmount} placeholder={String(listing.askingPrice ?? '')} />
-								</div>
-								<div class="field">
-									<label for="offer-note">Note (optional)</label>
-									<textarea id="offer-note" bind:value={offerNote}></textarea>
-								</div>
-								<button class="btn btn-primary" onclick={submitAdvertiserOffer} disabled={!offerAmount}>
-									Submit offer
-								</button>
-							{/if}
-						{:else}
-							<div class="stack">
-								{#each listing.offers as offer (offer.id)}
-									<div class="offer-bubble" class:from-creator={offer.from === 'creator'}>
-										<div class="row" style="justify-content: space-between;">
-											<strong>{offer.from === 'creator' ? creator.name : 'Advertiser'}</strong>
-											<span class="muted" style="font-size:12px;">{formatDateTime(offer.createdAt)}</span>
-										</div>
-										<div style="font-size:18px; font-weight:700; margin:4px 0;">{formatMoney(offer.amount)}</div>
-										{#if offer.note}<div class="muted" style="font-size:13px;">{offer.note}</div>{/if}
-										<span class="badge" style="margin-top:6px; background:#eee; color:#555;">{offer.status}</span>
-									</div>
-								{/each}
-							</div>
-
-							{#if listing.status !== 'deal'}
-								{@const latest = listing.offers[listing.offers.length - 1]}
-								{#if latest.status === 'pending'}
-									{#if latest.from === 'advertiser' && (isManagingCreator || !isAdvertiser)}
-										<hr class="sep" />
-										<p class="muted" style="font-size:13px;">Respond as {creator.name}:</p>
-										<div class="row">
-											<button class="btn btn-primary btn-sm" onclick={() => handleAccept(latest)}>Accept {formatMoney(latest.amount)}</button>
-										</div>
-										<div class="field" style="margin-top:10px;">
-											<label for="counter-amount">Counter-offer ($)</label>
-											<input id="counter-amount" type="number" bind:value={offerAmount} />
-										</div>
-										<div class="field">
-											<label for="counter-note">Note</label>
-											<textarea id="counter-note" bind:value={offerNote}></textarea>
-										</div>
-										<button class="btn btn-sm" onclick={submitCreatorCounter} disabled={!offerAmount}>Send counter</button>
-									{:else if latest.from === 'creator' && (isAdvertiser || !isManagingCreator)}
-										<hr class="sep" />
-										<p class="muted" style="font-size:13px;">Respond as advertiser:</p>
-										<div class="row">
-											<button class="btn btn-primary btn-sm" onclick={() => handleAccept(latest)}>Accept {formatMoney(latest.amount)}</button>
-										</div>
-										<div class="field" style="margin-top:10px;">
-											<label for="counter-amount2">Counter-offer ($)</label>
-											<input id="counter-amount2" type="number" bind:value={offerAmount} />
-										</div>
-										<div class="field">
-											<label for="counter-note2">Note</label>
-											<textarea id="counter-note2" bind:value={offerNote}></textarea>
-										</div>
-										<button class="btn btn-sm" onclick={submitAdvertiserOffer} disabled={!offerAmount}>Send counter</button>
-									{:else}
-										<p class="muted" style="font-size:13px;">Waiting on the other party to respond.</p>
-									{/if}
-								{/if}
-							{/if}
-						{/if}
-					</div>
-
-				<!-- ===================== MECHANISM C ===================== -->
-				{:else if listing.mechanism === 'C'}
-					<div class="card">
-						<h3 style="margin-top:0;">Exclusivity status</h3>
-						{#if !listing.exclusivity}
-							<p class="muted">Open — no advertiser currently holds exclusive access.</p>
-							{#if isAdvertiser || (!isManagingCreator && !isAdvertiser)}
-								<button class="btn btn-primary" onclick={doRequestExclusivity}>Request exclusivity</button>
-							{/if}
-						{:else}
-							{@const ex = listing.exclusivity}
-							{@const advertiser = getAdvertiser(ex.advertiserId)}
-							<div class="kv"><span class="muted">Held by</span><strong>{advertiser?.company ?? 'Advertiser'}</strong></div>
-							<div class="kv"><span class="muted">Granted</span><strong>{formatDate(ex.grantedAt)}</strong></div>
-							<div class="kv"><span class="muted">Expires</span><strong>{formatDate(ex.expiresAt)}</strong></div>
-
-							<hr class="sep" />
-
-							{#if listing.status === 'deal'}
-								<p class="muted">Terms agreed — see contract summary above.</p>
-							{:else if !ex.negotiation}
-								<p class="muted" style="font-size:13px;">No proposal yet.</p>
-								{#if isAdvertiser || (!isManagingCreator && !isAdvertiser)}
-									<div class="field">
-										<label for="neg-price">Propose price ($)</label>
-										<input id="neg-price" type="number" bind:value={negotiationPrice} />
-									</div>
-									<div class="field">
-										<label for="neg-terms">Terms</label>
-										<textarea id="neg-terms" bind:value={negotiationTerms} placeholder={listing.description}></textarea>
-									</div>
-									<button class="btn btn-primary btn-sm" onclick={() => submitProposal('advertiser')} disabled={!negotiationPrice}>
-										Propose terms
-									</button>
-								{:else}
-									<p class="muted" style="font-size:13px;">Waiting on {advertiser?.company} to propose terms.</p>
-								{/if}
-							{:else}
-								<div class="offer-bubble">
-									<div class="row" style="justify-content: space-between;">
-										<strong>{ex.negotiation.from === 'creator' ? creator.name : advertiser?.company}</strong>
-										<span class="badge" style="background:#eee; color:#555;">{ex.negotiation.status}</span>
-									</div>
-									<div style="font-size:18px; font-weight:700; margin:4px 0;">{formatMoney(ex.negotiation.proposedPrice)}</div>
-									<div class="muted" style="font-size:13px;">{ex.negotiation.proposedTerms}</div>
-								</div>
-
-								{#if ex.negotiation.status === 'proposed'}
-									{#if ex.negotiation.from === 'advertiser' && (isManagingCreator || !isAdvertiser)}
-										<hr class="sep" />
-										<div class="row">
-											<button class="btn btn-primary btn-sm" onclick={doAcceptNegotiation}>Accept terms</button>
-										</div>
-										<div class="field" style="margin-top:10px;">
-											<label for="counter-price">Counter-propose price ($)</label>
-											<input id="counter-price" type="number" bind:value={negotiationPrice} />
-										</div>
-										<div class="field">
-											<label for="counter-terms">Terms</label>
-											<textarea id="counter-terms" bind:value={negotiationTerms} placeholder={ex.negotiation.proposedTerms}></textarea>
-										</div>
-										<button class="btn btn-sm" onclick={() => submitProposal('creator')} disabled={!negotiationPrice}>Send counter-proposal</button>
-									{:else if ex.negotiation.from === 'creator' && (isAdvertiser || !isManagingCreator)}
-										<hr class="sep" />
-										<div class="row">
-											<button class="btn btn-primary btn-sm" onclick={doAcceptNegotiation}>Accept terms</button>
-										</div>
-										<div class="field" style="margin-top:10px;">
-											<label for="counter-price2">Counter-propose price ($)</label>
-											<input id="counter-price2" type="number" bind:value={negotiationPrice} />
-										</div>
-										<div class="field">
-											<label for="counter-terms2">Terms</label>
-											<textarea id="counter-terms2" bind:value={negotiationTerms} placeholder={ex.negotiation.proposedTerms}></textarea>
-										</div>
-										<button class="btn btn-sm" onclick={() => submitProposal('advertiser')} disabled={!negotiationPrice}>Send counter-proposal</button>
-									{:else}
-										<p class="muted" style="font-size:13px;">Waiting on the other party to respond.</p>
-									{/if}
-								{/if}
-							{/if}
-						{/if}
-					</div>
-
-				<!-- ===================== MECHANISM D ===================== -->
-				{:else if listing.mechanism === 'D'}
+				{#if listing.pricing_mechanism === 'D'}
 					<div class="card">
 						<h3 style="margin-top:0;">Reservation status</h3>
-						<div class="kv"><span class="muted">Floor price</span><strong>{formatMoney(listing.floorPrice ?? 0)}</strong></div>
-						<div class="kv"><span class="muted">Reservation deadline</span><strong>{formatDate(listing.reservationDeadline ?? '')}</strong></div>
+						<div class="kv"><span class="muted">Floor price</span><strong>{formatMoney(listing.floor_price_cents ?? 0)}</strong></div>
+						<div class="kv"><span class="muted">Reservation deadline</span><strong>{formatDate(listing.reservation_deadline ?? '')}</strong></div>
 
-						{#if !listing.reservation}
+						{#if !reservation || reservation.status === 'expired' || reservation.status === 'cancelled'}
 							<hr class="sep" />
-							<p class="muted">Open — no reservation placed yet.</p>
-							{#if isAdvertiser || (!isManagingCreator && !isAdvertiser)}
+							{#if !user}
+								<p class="muted">Open — <a href="/login">sign in</a> to reserve this slot.</p>
+							{:else if isOwnerOrManager}
+								<p class="muted">Open — no reservation placed yet.</p>
+							{:else}
+								<p class="muted">Open — no reservation placed yet.</p>
 								<button class="btn btn-primary" onclick={() => (showReserveConfirm = true)}>Reserve this slot</button>
 								{#if showReserveConfirm}
 									<div class="confirm-box">
 										<p style="margin-top:0;">
-											Confirm reservation: pay a {formatMoney(Math.round((listing.floorPrice ?? 0) * 0.1))} deposit
+											Confirm reservation: pay a {formatMoney(Math.round((listing.floor_price_cents ?? 0) * 0.1))} deposit
 											(10% of floor price) to lock this slot. Non-refundable if the creator confirms within the response window.
 										</p>
 										<div class="row">
-											<button class="btn btn-primary btn-sm" onclick={doReserve}>Confirm &amp; pay deposit</button>
+											<button class="btn btn-primary btn-sm" onclick={doReserve} disabled={reserving}>
+												{reserving ? 'Reserving…' : 'Confirm & pay deposit'}
+											</button>
 											<button class="btn btn-sm" onclick={() => (showReserveConfirm = false)}>Cancel</button>
 										</div>
 									</div>
 								{/if}
+								{#if reserveErr}<p class="warn">{reserveErr}</p>{/if}
 							{/if}
 						{:else}
-							{@const res = listing.reservation}
-							{@const advertiser = getAdvertiser(res.advertiserId)}
 							<hr class="sep" />
-							<div class="kv"><span class="muted">Reserved by</span><strong>{advertiser?.company}</strong></div>
-							<div class="kv"><span class="muted">Deposit paid</span><strong>{formatMoney(res.depositAmount)}</strong></div>
-							<div class="kv"><span class="muted">Response deadline</span><strong>{formatDate(res.responseDeadline)}</strong></div>
-							<div class="kv"><span class="muted">Status</span><strong>{res.status === 'confirmed' ? `Confirmed at ${formatMoney(res.confirmedPrice ?? 0)}` : 'Awaiting creator confirmation'}</strong></div>
+							<div class="kv"><span class="muted">Reserved by</span><strong>{reservation.advertiser?.display_name}</strong></div>
+							<div class="kv"><span class="muted">Deposit (10% of floor)</span><strong>{formatMoney(reservation.deposit_amount_cents ?? 0)}</strong></div>
+							<div class="kv"><span class="muted">Response deadline</span><strong>{formatDateTime(reservation.confirmation_deadline)}</strong></div>
+							<div class="kv"><span class="muted">Status</span><strong>{reservation.status === 'confirmed' ? 'Confirmed' : 'Awaiting creator confirmation'}</strong></div>
 
-							{#if res.status === 'awaiting_confirmation' && (isManagingCreator || !isAdvertiser)}
+							{#if reservation.status === 'held' && isOwnerOrManager}
 								<hr class="sep" />
-								<p class="muted" style="font-size:13px;">Confirm the final price as {creator.name} (must be at or above the floor price):</p>
+								<p class="muted" style="font-size:13px;">Confirm the final price (must be at or above the floor price):</p>
 								<div class="field">
 									<label for="final-price">Final price ($)</label>
-									<input id="final-price" type="number" min={listing.floorPrice} bind:value={confirmedPrice} placeholder={String(listing.floorPrice ?? '')} />
+									<input id="final-price" type="number" min={(listing.floor_price_cents ?? 0) / 100} bind:value={confirmedPrice} placeholder={String((listing.floor_price_cents ?? 0) / 100)} />
 								</div>
-								<button class="btn btn-primary btn-sm" onclick={doConfirmPrice} disabled={!confirmedPrice || Number(confirmedPrice) < (listing.floorPrice ?? 0)}>
-									Confirm final price
+								<button class="btn btn-primary btn-sm" onclick={doConfirmPrice} disabled={!confirmedPrice || confirming}>
+									{confirming ? 'Confirming…' : 'Confirm final price'}
 								</button>
-							{:else if res.status === 'awaiting_confirmation'}
-								<p class="muted" style="font-size:13px;">Waiting on {creator.name} to confirm the final price.</p>
+								{#if confirmErr}<p class="warn">{confirmErr}</p>{/if}
+							{:else if reservation.status === 'held'}
+								<p class="muted" style="font-size:13px;">Waiting on the creator to confirm the final price.</p>
 							{/if}
 						{/if}
 					</div>
-				{/if}
-
-				{#if reserveToast}
-					<div class="toast">Deposit paid — slot reserved.</div>
+				{:else}
+					<div class="card">
+						<h3 style="margin-top:0;">{listing.pricing_mechanism === 'A' ? 'Offer thread' : 'Exclusivity status'}</h3>
+						<p class="muted">
+							Mechanism {listing.pricing_mechanism}'s live negotiation isn't wired up to the real backend yet —
+							only mechanism D (reserve-the-slot) is connected so far, per the roadmap's "ship D first"
+							sequencing. This mechanism's tables and RLS already exist (<code>listing_offers</code> /
+							<code>listing_exclusivity_grants</code>), just not the RPCs yet.
+						</p>
+					</div>
 				{/if}
 			</div>
 		</div>
@@ -385,15 +186,6 @@
 <style>
 	.back-link {
 		font-size: 13px;
-	}
-	.acting-banner {
-		background: var(--purple-bg);
-		color: var(--purple);
-		padding: 8px 12px;
-		border-radius: var(--radius);
-		font-size: 13px;
-		font-weight: 600;
-		margin: 12px 0;
 	}
 	.deal-banner {
 		background: #dce8fd;
@@ -427,15 +219,6 @@
 	.explainer {
 		background: #fafafe;
 	}
-	.offer-bubble {
-		border: 1px solid var(--border);
-		border-radius: 8px;
-		padding: 10px 12px;
-		background: #fafafe;
-	}
-	.offer-bubble.from-creator {
-		background: #f1f6ff;
-	}
 	.confirm-box {
 		margin-top: 12px;
 		padding: 12px;
@@ -444,12 +227,8 @@
 		background: #fafafe;
 		font-size: 13px;
 	}
-	.toast {
-		background: var(--green-bg);
-		color: var(--green);
-		padding: 10px 12px;
-		border-radius: var(--radius);
-		font-size: 14px;
-		font-weight: 600;
+	.warn {
+		color: #b91c1c;
+		font-size: 13px;
 	}
 </style>

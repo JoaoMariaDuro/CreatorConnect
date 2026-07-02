@@ -1,39 +1,33 @@
 <script lang="ts">
-	import {
-		listings,
-		getCreator,
-		formatMoney,
-		formatDate,
-		type Platform,
-		type Mechanism
-	} from '$lib/store.svelte';
+	import { formatMoney, formatDate, type Mechanism } from '$lib/format';
 	import Badges from '$lib/Badges.svelte';
 
-	let platformFilter = $state<'all' | Platform>('all');
+	let { data } = $props();
+
+	let platformFilter = $state<'all' | string>('all');
 	let mechanismFilter = $state<'all' | Mechanism>('all');
 
 	const filtered = $derived(
-		listings.filter((l) => {
+		data.listings.filter((l: any) => {
 			if (platformFilter !== 'all' && l.platform !== platformFilter) return false;
-			if (mechanismFilter !== 'all' && l.mechanism !== mechanismFilter) return false;
+			if (mechanismFilter !== 'all' && l.pricing_mechanism !== mechanismFilter) return false;
 			return true;
 		})
 	);
 
-	function priceInfo(l: (typeof listings)[number]): string {
-		if (l.mechanism === 'A') {
-			return l.status === 'deal' && l.deal ? `Sold at ${formatMoney(l.deal.price)}` : `Asking ${formatMoney(l.askingPrice ?? 0)}`;
+	function priceInfo(l: any): string {
+		if (l.pricing_mechanism === 'A') {
+			return l.status === 'deal' ? 'Deal confirmed' : `Asking ${formatMoney(l.floor_price_cents ?? 0)}`;
 		}
-		if (l.mechanism === 'C') {
-			if (l.status === 'deal' && l.deal) return `Sold at ${formatMoney(l.deal.price)}`;
-			if (l.rateCardRangeLow && l.rateCardRangeHigh) {
-				return `~${formatMoney(l.rateCardRangeLow)}–${formatMoney(l.rateCardRangeHigh)}`;
+		if (l.pricing_mechanism === 'C') {
+			if (l.status === 'deal') return 'Deal confirmed';
+			if (l.rate_card_low_cents && l.rate_card_high_cents) {
+				return `~${formatMoney(l.rate_card_low_cents)}–${formatMoney(l.rate_card_high_cents)}`;
 			}
 			return 'Rate negotiated bilaterally';
 		}
-		if (l.mechanism === 'D') {
-			if (l.status === 'deal' && l.deal) return `Confirmed at ${formatMoney(l.deal.price)}`;
-			return `Floor ${formatMoney(l.floorPrice ?? 0)}`;
+		if (l.pricing_mechanism === 'D') {
+			return l.status === 'deal' ? 'Deal confirmed' : `Floor ${formatMoney(l.floor_price_cents ?? 0)}`;
 		}
 		return '';
 	}
@@ -65,30 +59,38 @@
 	</div>
 
 	{#if filtered.length === 0}
-		<div class="empty">No listings match those filters.</div>
+		<div class="empty">
+			{#if data.listings.length === 0}
+				No listings yet — be the first to <a href="/create">create one</a>.
+			{:else}
+				No listings match those filters.
+			{/if}
+		</div>
 	{:else}
 		<div class="grid">
 			{#each filtered as listing (listing.id)}
-				{@const creator = getCreator(listing.creatorId)}
 				<a class="card listing-card" href={`/listings/${listing.id}`}>
 					<div class="row" style="justify-content: space-between; margin-bottom: 8px;">
-						<Badges mechanism={listing.mechanism} />
+						<Badges mechanism={listing.pricing_mechanism} />
 						<Badges status={listing.status} />
 					</div>
-					<h3 style="margin: 4px 0 2px;">{creator?.name}</h3>
+					<h3 style="margin: 4px 0 2px;">{listing.creator?.display_name}</h3>
 					<div class="muted" style="font-size:13px; margin-bottom:8px;">
-						{creator?.handle} · {(creator?.followers ?? 0).toLocaleString()} followers · {creator?.niche}
+						{listing.creator?.handle ?? ''} · {(listing.creator?.follower_count ?? 0).toLocaleString()} followers
+						{#if listing.creator?.niche_tags?.length}
+							· {listing.creator.niche_tags.join(', ')}
+						{/if}
 					</div>
 					<div class="row" style="font-size:13px; margin-bottom:6px;">
 						<strong>{listing.platform}</strong>
 						<span class="muted">·</span>
-						<span>{listing.contentType}</span>
+						<span>{listing.content_type}</span>
 					</div>
-					<div class="muted" style="font-size:13px; margin-bottom:10px;">{listing.availabilityWindow}</div>
+					<div class="muted" style="font-size:13px; margin-bottom:10px;">{listing.availability_window}</div>
 					<hr class="sep" />
 					<div class="row" style="justify-content: space-between;">
 						<strong>{priceInfo(listing)}</strong>
-						<span class="muted" style="font-size:12px;">{formatDate(listing.createdAt)}</span>
+						<span class="muted" style="font-size:12px;">{formatDate(listing.created_at)}</span>
 					</div>
 				</a>
 			{/each}

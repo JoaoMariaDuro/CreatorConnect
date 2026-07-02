@@ -1,31 +1,20 @@
 <script lang="ts">
-	import { page } from '$app/state';
-	import {
-		getListing,
-		getCreator,
-		getAdvertiser,
-		formatMoney,
-		formatDate,
-		formatDateTime,
-		mechanismLabel
-	} from '$lib/store.svelte';
+	import { formatMoney, formatDate, formatDateTime, mechanismLabel } from '$lib/format';
 
-	const listing = $derived(getListing(page.params.id ?? ''));
-	const creator = $derived(listing ? getCreator(listing.creatorId) : undefined);
-	const advertiser = $derived(listing?.deal ? getAdvertiser(listing.deal.advertiserId) : undefined);
+	let { data } = $props();
+	const deal = $derived(data.deal);
 
-	const bookingPortion = $derived(listing?.deal ? Math.round(listing.deal.price * 0.5) : 0);
-	const deliveryPortion = $derived(listing?.deal ? listing.deal.price - Math.round(listing.deal.price * 0.5) : 0);
+	const bookingPortion = $derived(deal ? Math.round(deal.final_price_cents * 0.5) : 0);
+	const deliveryPortion = $derived(deal ? deal.final_price_cents - Math.round(deal.final_price_cents * 0.5) : 0);
 	const platformFeeRate = 0.15;
-	const platformFee = $derived(listing?.deal ? Math.round(listing.deal.price * platformFeeRate) : 0);
+	const platformFee = $derived(deal ? Math.round(deal.final_price_cents * platformFeeRate) : 0);
 </script>
 
 <div class="container narrow">
-	{#if !listing || !listing.deal || !creator}
-		<div class="empty">No confirmed deal found for this listing.</div>
+	{#if !deal}
+		<div class="empty">No confirmed deal found.</div>
 	{:else}
-		{@const deal = listing.deal}
-		<a href={`/listings/${listing.id}`} class="back-link">&larr; Back to listing</a>
+		<a href={`/listings/${deal.listing_id}`} class="back-link">&larr; Back to listing</a>
 
 		<div class="contract card">
 			<div class="contract-header">
@@ -33,7 +22,7 @@
 					<span class="badge" style="background:#dce8fd; color:var(--accent-dark);">Deal Confirmed</span>
 					<h1 style="margin: 8px 0 0;">Sponsorship Agreement</h1>
 					<p class="muted" style="margin-top:4px;">
-						Reached via Mechanism {deal.mechanism} — {mechanismLabel[deal.mechanism]}
+						Reached via Mechanism {deal.listing?.pricing_mechanism} — {mechanismLabel[deal.listing?.pricing_mechanism as 'A' | 'C' | 'D']}
 					</p>
 				</div>
 			</div>
@@ -43,39 +32,40 @@
 			<div class="parties">
 				<div>
 					<div class="section-title" style="margin-top:0;">Creator</div>
-					<strong>{creator.name}</strong>
-					<div class="muted">{creator.handle} · {creator.platforms.join(', ')}</div>
+					<strong>{deal.creator?.display_name}</strong>
+					<div class="muted">{deal.creator?.handle ?? ''}</div>
 				</div>
 				<div>
 					<div class="section-title" style="margin-top:0;">Advertiser</div>
-					<strong>{advertiser?.company}</strong>
-					<div class="muted">{advertiser?.contactName}</div>
+					<strong>{deal.advertiser?.display_name}</strong>
 				</div>
 			</div>
 
 			<hr class="sep" />
 
 			<div class="section-title" style="margin-top:0;">Deliverable</div>
-			<p>{deal.deliverySpec}</p>
-			<div class="kv"><span class="muted">Platform</span><strong>{listing.platform}</strong></div>
-			<div class="kv"><span class="muted">Content type</span><strong>{listing.contentType}</strong></div>
-			<div class="kv"><span class="muted">Delivery date</span><strong>{formatDate(deal.deliveryDate)}</strong></div>
-			<div class="kv"><span class="muted">Disclosure requirement</span><strong>#ad / FTC-compliant disclosure required</strong></div>
+			<p>{deal.deliverable_spec?.description ?? ''}</p>
+			<div class="kv"><span class="muted">Platform</span><strong>{deal.listing?.platform}</strong></div>
+			<div class="kv"><span class="muted">Content type</span><strong>{deal.listing?.content_type}</strong></div>
+			{#if deal.delivery_due_at}
+				<div class="kv"><span class="muted">Delivery date</span><strong>{formatDate(deal.delivery_due_at)}</strong></div>
+			{/if}
+			<div class="kv"><span class="muted">Disclosure requirement</span><strong>{deal.disclosure_terms}</strong></div>
 
 			<div class="section-title">Pricing</div>
-			<div class="kv"><span class="muted">Total price</span><strong>{formatMoney(deal.price)}</strong></div>
+			<div class="kv"><span class="muted">Total price</span><strong>{formatMoney(deal.final_price_cents)}</strong></div>
 			<div class="kv"><span class="muted">Due at booking confirmation (50%)</span><strong>{formatMoney(bookingPortion)}</strong></div>
 			<div class="kv"><span class="muted">Released on delivery (50%)</span><strong>{formatMoney(deliveryPortion)}</strong></div>
 			<div class="kv"><span class="muted">Platform fee (15%, deducted at payout)</span><strong>{formatMoney(platformFee)}</strong></div>
 
 			<div class="section-title">Terms</div>
-			<div class="kv"><span class="muted">Cancellation</span><strong>Standard escrow terms — dispute freezes remaining balance</strong></div>
-			<div class="kv"><span class="muted">Confirmed</span><strong>{formatDateTime(deal.confirmedAt)}</strong></div>
+			<div class="kv"><span class="muted">Status</span><strong>{deal.status}</strong></div>
+			<div class="kv"><span class="muted">Confirmed</span><strong>{formatDateTime(deal.confirmed_at)}</strong></div>
 
 			<hr class="sep" />
 			<p class="muted" style="font-size:12px;">
-				This is a prototype summary screen — no PDF generation, escrow, or payment processing occurs. In production this
-				would be a generated contract with Stripe Connect escrow behind it.
+				Escrow/Stripe Connect isn't wired up yet (roadmap Phase 0 items 0.4/0.5) — this reflects the
+				real <code>deals</code> row, but no payment has actually moved.
 			</p>
 		</div>
 	{/if}

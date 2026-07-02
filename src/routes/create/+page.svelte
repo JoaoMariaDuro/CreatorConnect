@@ -1,40 +1,27 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import {
-		viewerState,
-		actingCreatorId,
-		getManager,
-		creators,
-		getCreator,
-		createListing,
-		mechanismLabel,
-		mechanismShortExplainer,
-		type Platform,
-		type ContentType,
-		type Mechanism
-	} from '$lib/store.svelte';
+	import { mechanismLabel, mechanismShortExplainer, type Mechanism } from '$lib/format';
 
-	const viewer = $derived(viewerState.current);
-	const managedCreatorId = $derived(actingCreatorId(viewer));
+	let { data } = $props();
 
-	// Which creator this listing will be created for. If a manager is browsing without
-	// "acting as" someone selected, let them pick from their roster.
+	const profile = $derived(page.data.profile);
+	const isManager = $derived(profile?.role === 'manager');
+	const isAdvertiser = $derived(profile?.role === 'advertiser');
+
+	// Which creator this listing will be created for. Creators create for themselves; managers pick
+	// from their linked roster (data.roster, loaded server-side in +page.server.ts).
 	let selectedCreatorId = $state<string>('');
 	$effect(() => {
-		if (managedCreatorId) selectedCreatorId = managedCreatorId;
+		if (!isManager && profile) selectedCreatorId = profile.id;
 	});
 
-	const managerRoster = $derived(
-		viewer.role === 'manager' ? (getManager(viewer.id)?.creatorIds ?? []).map((id) => getCreator(id)!) : []
-	);
-
-	let platform = $state<Platform>('YouTube');
-	let contentType = $state<ContentType>('Integration');
+	let platform = $state('YouTube');
+	let contentType = $state('Integration');
 	let availabilityWindow = $state('');
 	let description = $state('');
 	let mechanism = $state<Mechanism | ''>('');
 
-	// mechanism-specific fields
 	let askingPrice = $state('');
 	let exclusivityWindowDays = $state('7');
 	let rateCardRangeLow = $state('');
@@ -43,6 +30,8 @@
 	let reservationDeadline = $state('');
 
 	let created = $state<string | null>(null);
+	let submitting = $state(false);
+	let err = $state('');
 
 	const canSubmit = $derived(
 		!!selectedCreatorId &&
@@ -58,23 +47,39 @@
 						: false)
 	);
 
-	function submit() {
-		if (!canSubmit || !mechanism) return;
-		const listing = createListing({
-			creatorId: selectedCreatorId,
+	async function submit() {
+		if (!canSubmit || !mechanism || !data.supabase) return;
+		submitting = true;
+		err = '';
+
+		const row: Record<string, unknown> = {
+			creator_id: selectedCreatorId,
+			created_by: page.data.user.id,
 			platform,
-			contentType,
-			availabilityWindow,
+			content_type: contentType,
+			availability_window: availabilityWindow,
 			description,
-			mechanism,
-			askingPrice: mechanism === 'A' ? Number(askingPrice) : undefined,
-			exclusivityWindowDays: mechanism === 'C' ? Number(exclusivityWindowDays) : undefined,
-			rateCardRangeLow: mechanism === 'C' && rateCardRangeLow ? Number(rateCardRangeLow) : undefined,
-			rateCardRangeHigh: mechanism === 'C' && rateCardRangeHigh ? Number(rateCardRangeHigh) : undefined,
-			floorPrice: mechanism === 'D' ? Number(floorPrice) : undefined,
-			reservationDeadline: mechanism === 'D' ? new Date(reservationDeadline).toISOString() : undefined
-		});
-		created = listing.id;
+			pricing_mechanism: mechanism,
+			status: 'open'
+		};
+		if (mechanism === 'A') {
+			row.floor_price_cents = Math.round(Number(askingPrice) * 100);
+		} else if (mechanism === 'C') {
+			row.exclusivity_window = `${exclusivityWindowDays} days`;
+			if (rateCardRangeLow) row.rate_card_low_cents = Math.round(Number(rateCardRangeLow) * 100);
+			if (rateCardRangeHigh) row.rate_card_high_cents = Math.round(Number(rateCardRangeHigh) * 100);
+		} else if (mechanism === 'D') {
+			row.floor_price_cents = Math.round(Number(floorPrice) * 100);
+			row.reservation_deadline = new Date(reservationDeadline).toISOString();
+		}
+
+		const { data: inserted, error } = await data.supabase.from('creator_listings').insert(row).select('id').single();
+		submitting = false;
+		if (error) {
+			err = error.message;
+			return;
+		}
+		created = inserted.id;
 	}
 
 	function viewListing() {
@@ -97,21 +102,22 @@
 		</div>
 	{:else}
 		<div class="card" style="margin-top:20px;">
-			{#if viewer.role === 'advertiser'}
-				<p class="muted">You're viewing as an advertiser. Switch to a creator or a manager (acting as a creator) in the header to create a listing.</p>
+			{#if isAdvertiser}
+				<p class="muted">You're signed in as an advertiser. Only creators and managers can create listings.</p>
 			{:else}
-				{#if viewer.role === 'manager' && !managedCreatorId}
+				{#if isManager}
 					<div class="field">
 						<label for="creator-select">Creating for</label>
 						<select id="creator-select" bind:value={selectedCreatorId}>
 							<option value="">Select a creator on your roster…</option>
-							{#each managerRoster as c (c.id)}
-								<option value={c.id}>{c.name}</option>
+							{#each data.roster as c (c.id)}
+								<option value={c.id}>{c.display_name}</option>
 							{/each}
 						</select>
+						{#if data.roster.length === 0}
+							<span class="hint">No linked creators yet — a creator needs to grant you access first.</span>
+						{/if}
 					</div>
-				{:else if viewer.role === 'manager' && managedCreatorId}
-					<div class="acting-banner">Acting as {getManager(viewer.id)?.name} on behalf of {getCreator(managedCreatorId)?.name}</div>
 				{/if}
 
 				<div class="field">
@@ -194,8 +200,9 @@
 					</div>
 				{/if}
 
-				<button class="btn btn-primary" style="margin-top:16px;" onclick={submit} disabled={!canSubmit}>
-					Publish listing
+				{#if err}<p class="warn">{err}</p>{/if}
+				<button class="btn btn-primary" style="margin-top:16px;" onclick={submit} disabled={!canSubmit || submitting}>
+					{submitting ? 'Publishing…' : 'Publish listing'}
 				</button>
 			{/if}
 		</div>
@@ -205,15 +212,6 @@
 <style>
 	.narrow {
 		max-width: 640px;
-	}
-	.acting-banner {
-		background: var(--purple-bg);
-		color: var(--purple);
-		padding: 8px 12px;
-		border-radius: var(--radius);
-		font-size: 13px;
-		font-weight: 600;
-		margin-bottom: 16px;
 	}
 	.mechanism-choices {
 		display: flex;
@@ -231,5 +229,9 @@
 		border-color: var(--accent);
 		box-shadow: 0 0 0 1px var(--accent);
 		background: #f5f7ff;
+	}
+	.warn {
+		color: #b91c1c;
+		font-size: 13px;
 	}
 </style>

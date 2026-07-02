@@ -149,6 +149,23 @@ button {
 	background: #dce8fd;
 	color: var(--accent-dark);
 }
+.badge-draft {
+	background: #f0f0f0;
+	color: #666;
+}
+.badge-reserved {
+	background: var(--amber-bg);
+	color: var(--amber);
+}
+.badge-confirmed {
+	background: #dce8fd;
+	color: var(--accent-dark);
+}
+.badge-expired,
+.badge-cancelled {
+	background: #fee2e2;
+	color: #b91c1c;
+}
 
 .grid {
 	display: grid;
