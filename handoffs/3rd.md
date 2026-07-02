@@ -383,10 +383,41 @@ defined field shape anywhere in any doc, so a minimal 2-field shape (`avg_views_
 one. Badges only, matching PRODUCT.md §7 Q3's 60/180-day thresholds — no browse-listing reordering
 or deprioritization, which stays a separate, bigger decision for later.
 
+The founder then revisited task 11 itself — the Founder/Admin dispute-resolution surface,
+originally deferred earlier in this same session pending real dispute volume — and asked to build
+it as insurance now instead of waiting. Built in a three-stage pipeline (backend first, since the
+two frontend pieces both depend on its exact interface; then the disputes-list/nav/layout and the
+dispute-detail/resolution page in parallel once the backend was reviewed and locked):
+
+- **Backend** (commit `31e903f`): `profiles.is_platform_admin` (additive, no new role tier, no
+  impersonation), `is_platform_admin()` helper mirroring `is_authorized_for_creator()`, three
+  existing RLS select policies (`deals`, `escrow_transactions`, `audit_log`) widened with an
+  `or is_platform_admin()` clause — verified pure OR-widening, nothing narrowed — and
+  `resolve_dispute_as_admin`, which transitions a disputed deal to `completed` (release) or
+  `cancelled` (refund/cancel) and attributes the audit_log row to the founder's own `auth.uid()`,
+  never a service-role identity. No `escrow_transactions` writes, matching this codebase's existing
+  no-real-Stripe-wiring pattern throughout.
+- **Frontend** (commit `27626ff`): `/admin` (route-protected, redirects to `/dashboard` not
+  `/login` since the visitor is already authenticated), a red-tinted sidebar nav entry,
+  `/admin/disputes` (queue sorted oldest-first, timestamp sourced from `flag_dispute_as`'s own
+  `audit_log` row since `deals` has no dedicated column for it), and
+  `/admin/disputes/[dealId]` (deal terms, escrow state, a merged chronological audit trail from
+  both the deal and its origin reservation/offer/grant row — the trickiest part was disambiguating
+  `audit_log`'s two FKs to `profiles` in one PostgREST embed, resolved via the same auto-generated
+  `<table>_<column>_fkey` naming convention already relied on elsewhere in this codebase — and a
+  two-step-confirm resolution panel). Every load function relies on the RLS/RPC layer as the real
+  security boundary rather than re-checking admin status itself.
+
+**One manual step still required, same pattern as the SQL re-run**: `supabase/rpc-admin.sql` needs
+to be run against the live project (README's setup order updated to reflect it), and — by design,
+per the access spec — there is no in-app way to grant yourself `is_platform_admin`. `supabase/README.md`
+now documents the exact one-time SQL statement.
+
 ### What's still genuinely open
 
-- The Founder/Admin dispute-resolution surface (task 11) — fully spec'd in
-  `docs/ROLE_ACCESS_AND_UX_SPEC.md`, deliberately not built, waiting on real dispute volume.
 - Everything this brief's own "explicitly out of scope" section named, unchanged: Stripe Connect,
   the sealed-bid tiebreaker, `ROADMAP.md` Phase 3, defaulting Mechanism D / featured rails, a full
   review/rating system beyond the minimal count shipped this session.
+- Escrow/Stripe writes on dispute resolution — `resolve_dispute_as_admin` only moves `deals.status`;
+  it deliberately does not touch `escrow_transactions` or issue a real refund, matching every other
+  RPC in this codebase pre-Stripe-wiring. Revisit once roadmap Phase 0 items 0.4/0.5 land.
