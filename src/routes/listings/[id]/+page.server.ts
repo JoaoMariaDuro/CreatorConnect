@@ -1,7 +1,7 @@
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals: { safeGetSession, supabase } }) => {
-	if (!supabase) return { listing: null, reservation: null, isDelegatedManager: false };
+	if (!supabase) return { listing: null, reservation: null, offers: [], grant: null, isDelegatedManager: false };
 
 	const { data: listing } = await supabase
 		.from('creator_listings')
@@ -21,6 +21,28 @@ export const load: PageServerLoad = async ({ params, locals: { safeGetSession, s
 			.limit(1)
 			.maybeSingle();
 		reservation = data;
+	}
+
+	let offers: any[] = [];
+	if (listing?.pricing_mechanism === 'A') {
+		const { data } = await supabase
+			.from('listing_offers')
+			.select('*')
+			.eq('listing_id', params.id)
+			.order('created_at', { ascending: true });
+		offers = data ?? [];
+	}
+
+	let grant = null;
+	if (listing?.pricing_mechanism === 'C') {
+		const { data } = await supabase
+			.from('listing_exclusivity_grants')
+			.select('*, advertiser:profiles!listing_exclusivity_grants_advertiser_id_fkey (id, display_name)')
+			.eq('listing_id', params.id)
+			.order('created_at', { ascending: false })
+			.limit(1)
+			.maybeSingle();
+		grant = data;
 	}
 
 	// Real manager-delegation check (not just direct ownership) — matches is_authorized_for_creator's
@@ -61,5 +83,5 @@ export const load: PageServerLoad = async ({ params, locals: { safeGetSession, s
 		}
 	}
 
-	return { listing, reservation, isDelegatedManager, ownerManagerBands };
+	return { listing, reservation, offers, grant, isDelegatedManager, ownerManagerBands };
 };

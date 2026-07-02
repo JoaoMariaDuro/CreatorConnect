@@ -80,6 +80,98 @@
 		}
 		goto(`/deal/${deal.id}`);
 	}
+
+	// ---- Mechanism A ----
+	const offers = $derived(data.offers ?? []);
+	const latestOffer = $derived(offers.length ? offers[offers.length - 1] : null);
+
+	let offerAmount = $state('');
+	let offerNote = $state('');
+	let offerBusy = $state(false);
+	let offerErr = $state('');
+
+	async function submitOffer(from: 'advertiser' | 'creator') {
+		if (!listing || !supabase || !offerAmount) return;
+		offerBusy = true;
+		offerErr = '';
+		const { error } = await supabase.rpc('submit_offer_as', {
+			p_listing_id: listing.id,
+			p_from: from,
+			p_amount_cents: Math.round(Number(offerAmount) * 100),
+			p_note: offerNote || null
+		});
+		offerBusy = false;
+		if (error) { offerErr = error.message; return; }
+		offerAmount = '';
+		offerNote = '';
+		await invalidateAll();
+	}
+
+	async function acceptOffer() {
+		if (!listing || !supabase || !latestOffer) return;
+		offerBusy = true;
+		offerErr = '';
+		const rpc = latestOffer.proposed_by === 'advertiser' ? 'accept_offer_as' : 'accept_offer_as_advertiser';
+		const args = latestOffer.proposed_by === 'advertiser'
+			? { p_creator_id: listing.creator_id, p_offer_id: latestOffer.id }
+			: { p_offer_id: latestOffer.id };
+		const { data: deal, error } = await supabase.rpc(rpc, args);
+		offerBusy = false;
+		if (error) { offerErr = error.message; return; }
+		goto(`/deal/${deal.id}`);
+	}
+
+	// ---- Mechanism C ----
+	const grant = $derived(data.grant);
+
+	let requestingExclusivity = $state(false);
+	let exclusivityErr = $state('');
+
+	async function doRequestExclusivity() {
+		if (!listing || !supabase) return;
+		requestingExclusivity = true;
+		exclusivityErr = '';
+		const { error } = await supabase.rpc('request_exclusivity_as', { p_listing_id: listing.id });
+		requestingExclusivity = false;
+		if (error) { exclusivityErr = error.message; return; }
+		await invalidateAll();
+	}
+
+	let negotiationPrice = $state('');
+	let negotiationTerms = $state('');
+	let negotiationBusy = $state(false);
+
+	async function submitProposal(from: 'advertiser' | 'creator') {
+		if (!grant || !supabase || !negotiationPrice) return;
+		negotiationBusy = true;
+		exclusivityErr = '';
+		const { error } = await supabase.rpc('propose_exclusivity_terms_as', {
+			p_grant_id: grant.id,
+			p_from: from,
+			p_price_cents: Math.round(Number(negotiationPrice) * 100),
+			p_terms: negotiationTerms || listing?.description || ''
+		});
+		negotiationBusy = false;
+		if (error) { exclusivityErr = error.message; return; }
+		negotiationPrice = '';
+		negotiationTerms = '';
+		await invalidateAll();
+	}
+
+	async function acceptExclusivityTerms() {
+		if (!listing || !grant || !supabase) return;
+		negotiationBusy = true;
+		exclusivityErr = '';
+		const proposedByAdvertiser = grant.negotiation?.from === 'advertiser';
+		const rpc = proposedByAdvertiser ? 'convert_exclusivity_as' : 'convert_exclusivity_as_advertiser';
+		const args = proposedByAdvertiser
+			? { p_creator_id: listing.creator_id, p_grant_id: grant.id }
+			: { p_grant_id: grant.id };
+		const { data: deal, error } = await supabase.rpc(rpc, args);
+		negotiationBusy = false;
+		if (error) { exclusivityErr = error.message; return; }
+		goto(`/deal/${deal.id}`);
+	}
 </script>
 
 <div class="container">
@@ -225,15 +317,155 @@
 							{/if}
 						{/if}
 					</div>
-				{:else}
+				{:else if listing.pricing_mechanism === 'A'}
 					<div class="card">
-						<h3 style="margin-top:0;">{listing.pricing_mechanism === 'A' ? 'Offer thread' : 'Exclusivity status'}</h3>
-						<p class="muted">
-							Mechanism {listing.pricing_mechanism}'s live negotiation isn't wired up to the real backend yet —
-							only mechanism D (reserve-the-slot) is connected so far, per the roadmap's "ship D first"
-							sequencing. This mechanism's tables and RLS already exist (<code>listing_offers</code> /
-							<code>listing_exclusivity_grants</code>), just not the RPCs yet.
-						</p>
+						<h3 style="margin-top:0;">Offer thread</h3>
+						{#if offers.length === 0}
+							<p class="muted">No offers yet.</p>
+							{#if !user}
+								<p class="muted">Open — <a href="/login">sign in</a> to make an offer.</p>
+							{:else if !isOwnerOrManager}
+								<div class="field">
+									<label for="offer-amount">Make an offer ($)</label>
+									<input id="offer-amount" type="number" bind:value={offerAmount} placeholder={String((listing.floor_price_cents ?? 0) / 100)} />
+								</div>
+								<div class="field">
+									<label for="offer-note">Note (optional)</label>
+									<textarea id="offer-note" bind:value={offerNote}></textarea>
+								</div>
+								<button class="btn btn-primary" onclick={() => submitOffer('advertiser')} disabled={!offerAmount || offerBusy}>
+									{offerBusy ? 'Submitting…' : 'Submit offer'}
+								</button>
+							{/if}
+						{:else}
+							<div class="stack">
+								{#each offers as offer (offer.id)}
+									<div class="offer-bubble" class:from-creator={offer.proposed_by === 'creator'}>
+										<div class="row" style="justify-content: space-between;">
+											<strong>{offer.proposed_by === 'creator' ? listing.creator?.display_name : 'Advertiser'}</strong>
+											<span class="muted" style="font-size:12px;">{formatDateTime(offer.created_at)}</span>
+										</div>
+										<div style="font-size:18px; font-weight:700; margin:4px 0;">{formatMoney(offer.offer_amount_cents)}</div>
+										{#if offer.note}<div class="muted" style="font-size:13px;">{offer.note}</div>{/if}
+										<span class="badge" style="margin-top:6px; background:var(--panel-raised); color:var(--text-muted);">{offer.status}</span>
+									</div>
+								{/each}
+							</div>
+
+							{#if listing.status !== 'deal' && latestOffer?.status === 'open'}
+								{#if latestOffer.proposed_by === 'advertiser' && isOwnerOrManager}
+									<hr class="sep" />
+									<p class="muted" style="font-size:13px;">Respond as {listing.creator?.display_name}:</p>
+									<div class="row">
+										<button class="btn btn-primary btn-sm" onclick={acceptOffer} disabled={offerBusy}>Accept {formatMoney(latestOffer.offer_amount_cents)}</button>
+									</div>
+									<div class="field" style="margin-top:10px;">
+										<label for="counter-amount">Counter-offer ($)</label>
+										<input id="counter-amount" type="number" bind:value={offerAmount} />
+									</div>
+									<button class="btn btn-sm" onclick={() => submitOffer('creator')} disabled={!offerAmount || offerBusy}>Send counter</button>
+								{:else if latestOffer.proposed_by === 'creator' && !isOwnerOrManager}
+									<hr class="sep" />
+									<p class="muted" style="font-size:13px;">Respond as advertiser:</p>
+									<div class="row">
+										<button class="btn btn-primary btn-sm" onclick={acceptOffer} disabled={offerBusy}>Accept {formatMoney(latestOffer.offer_amount_cents)}</button>
+									</div>
+									<div class="field" style="margin-top:10px;">
+										<label for="counter-amount2">Counter-offer ($)</label>
+										<input id="counter-amount2" type="number" bind:value={offerAmount} />
+									</div>
+									<button class="btn btn-sm" onclick={() => submitOffer('advertiser')} disabled={!offerAmount || offerBusy}>Send counter</button>
+								{:else}
+									<p class="muted" style="font-size:13px;">Waiting on the other party to respond.</p>
+								{/if}
+							{/if}
+						{/if}
+						{#if offerErr}<p class="warn">{offerErr}</p>{/if}
+					</div>
+				{:else if listing.pricing_mechanism === 'C'}
+					<div class="card">
+						<h3 style="margin-top:0;">Exclusivity status</h3>
+						{#if !grant || grant.status === 'expired' || grant.status === 'revoked'}
+							<p class="muted">Open — no advertiser currently holds exclusive access.</p>
+							{#if !user}
+								<p class="muted">Open — <a href="/login">sign in</a> to request exclusivity.</p>
+							{:else if !isOwnerOrManager}
+								<button class="btn btn-primary" onclick={doRequestExclusivity} disabled={requestingExclusivity}>
+									{requestingExclusivity ? 'Requesting…' : 'Request exclusivity'}
+								</button>
+							{/if}
+						{:else}
+							<div class="kv"><span class="muted">Held by</span><strong>{grant.advertiser?.display_name ?? 'Advertiser'}</strong></div>
+							<div class="kv"><span class="muted">Granted</span><strong>{formatDate(grant.window_starts_at)}</strong></div>
+							<div class="kv"><span class="muted">Expires</span><strong>{formatDate(grant.window_ends_at)}</strong></div>
+
+							<hr class="sep" />
+
+							{#if listing.status === 'deal'}
+								<p class="muted">Terms agreed — see contract summary above.</p>
+							{:else if !grant.negotiation}
+								<p class="muted" style="font-size:13px;">No proposal yet.</p>
+								{#if !isOwnerOrManager}
+									<div class="field">
+										<label for="neg-price">Propose price ($)</label>
+										<input id="neg-price" type="number" bind:value={negotiationPrice} />
+									</div>
+									<div class="field">
+										<label for="neg-terms">Terms</label>
+										<textarea id="neg-terms" bind:value={negotiationTerms} placeholder={listing.description}></textarea>
+									</div>
+									<button class="btn btn-primary btn-sm" onclick={() => submitProposal('advertiser')} disabled={!negotiationPrice || negotiationBusy}>
+										Propose terms
+									</button>
+								{:else}
+									<p class="muted" style="font-size:13px;">Waiting on {grant.advertiser?.display_name} to propose terms.</p>
+								{/if}
+							{:else}
+								<div class="offer-bubble">
+									<div class="row" style="justify-content: space-between;">
+										<strong>{grant.negotiation.from === 'creator' ? listing.creator?.display_name : grant.advertiser?.display_name}</strong>
+										<span class="badge" style="background:var(--panel-raised); color:var(--text-muted);">{grant.negotiation.status}</span>
+									</div>
+									<div style="font-size:18px; font-weight:700; margin:4px 0;">{formatMoney(grant.negotiation.proposedPrice)}</div>
+									<div class="muted" style="font-size:13px;">{grant.negotiation.proposedTerms}</div>
+								</div>
+
+								{#if grant.negotiation.status === 'proposed'}
+									{#if grant.negotiation.from === 'advertiser' && isOwnerOrManager}
+										<hr class="sep" />
+										<div class="row">
+											<button class="btn btn-primary btn-sm" onclick={acceptExclusivityTerms} disabled={negotiationBusy}>Accept terms</button>
+										</div>
+										<div class="field" style="margin-top:10px;">
+											<label for="counter-price">Counter-propose price ($)</label>
+											<input id="counter-price" type="number" bind:value={negotiationPrice} />
+										</div>
+										<div class="field">
+											<label for="counter-terms">Terms</label>
+											<textarea id="counter-terms" bind:value={negotiationTerms} placeholder={grant.negotiation.proposedTerms}></textarea>
+										</div>
+										<button class="btn btn-sm" onclick={() => submitProposal('creator')} disabled={!negotiationPrice || negotiationBusy}>Send counter-proposal</button>
+									{:else if grant.negotiation.from === 'creator' && !isOwnerOrManager}
+										<hr class="sep" />
+										<div class="row">
+											<button class="btn btn-primary btn-sm" onclick={acceptExclusivityTerms} disabled={negotiationBusy}>Accept terms</button>
+										</div>
+										<div class="field" style="margin-top:10px;">
+											<label for="counter-price2">Counter-propose price ($)</label>
+											<input id="counter-price2" type="number" bind:value={negotiationPrice} />
+										</div>
+										<div class="field">
+											<label for="counter-terms2">Terms</label>
+											<textarea id="counter-terms2" bind:value={negotiationTerms} placeholder={grant.negotiation.proposedTerms}></textarea>
+										</div>
+										<button class="btn btn-sm" onclick={() => submitProposal('advertiser')} disabled={!negotiationPrice || negotiationBusy}>Send counter-proposal</button>
+									{:else}
+										<p class="muted" style="font-size:13px;">Waiting on the other party to respond.</p>
+									{/if}
+								{/if}
+							{/if}
+						{/if}
+						{#if exclusivityErr}<p class="warn">{exclusivityErr}</p>{/if}
 					</div>
 				{/if}
 			</div>
@@ -293,6 +525,15 @@
 		border-radius: 8px;
 		background: var(--panel-raised);
 		font-size: 13px;
+	}
+	.offer-bubble {
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		padding: 10px 12px;
+		background: var(--panel-raised);
+	}
+	.offer-bubble.from-creator {
+		background: var(--accent-bg);
 	}
 	.warn {
 		color: var(--red);

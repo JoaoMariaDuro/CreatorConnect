@@ -27,6 +27,11 @@ exists`, `drop policy if exists` before `create policy`) so re-running one after
    `release_delivery_balance` to run every 5 minutes via `pg_cron`. **Requires enabling the pg_cron
    extension first**: Database → Extensions → search "pg_cron" → Enable, in the Supabase dashboard,
    before running this file.
+10. [`rpc-mechanism-ac.sql`](./rpc-mechanism-ac.sql) — mechanisms A and C's RPC families
+    (`submit_offer_as`/`accept_offer_as`/`accept_offer_as_advertiser` for A;
+    `request_exclusivity_as`/`propose_exclusivity_terms_as`/`convert_exclusivity_as`/
+    `convert_exclusivity_as_advertiser` for C), plus `expire_exclusivity` (not yet scheduled — see
+    below). Phase 1-FastFollow, built on the pattern proven by `rpc-mechanism-d.sql`.
 
 ## Then: get the app talking to it
 
@@ -45,12 +50,16 @@ exists`, `drop policy if exists` before `create policy`) so re-running one after
 
 ## What's NOT here yet
 
-- **Mechanisms A and C's RPC functions** (`accept_offer_as`, `counter_offer_as`, `request_exclusivity_as`,
-  `convert_exclusivity_as`) — Phase 1-FastFollow, per the roadmap.
 - **Stripe Connect integration** — the escrow tables exist but nothing writes to them yet. That's
-  roadmap Phase 0 items 0.4/0.5, not done.
+  roadmap Phase 0 items 0.4/0.5, not done — deposits, offers, and deals all move through the real
+  state machine, just no real money yet.
 - **The sealed-bid tiebreaker's RPCs** — deliberately deferred to Phase 1.5 per the roadmap; the
   tables exist, `place_reservation` currently just rejects contention outright.
+- **Mechanism C's expiry job isn't scheduled** — `expire_exclusivity` (in `rpc-mechanism-ac.sql`)
+  exists but `cron-scheduling.sql` only schedules D's two jobs. Add a third
+  `cron.schedule('expire-stale-exclusivity', '*/5 * * * *', 'select public.run_expire_stale_exclusivity();')`
+  (with a matching wrapper function, same per-row exception-handling pattern) when ready — low
+  priority since C has no deposit at risk, an expired grant just reopens the listing.
 - **Disputed deals still resolve manually** — `cron-scheduling.sql`'s auto-release only fires for
   non-disputed deals (`release_delivery_balance` already checks and skips disputed ones); resolving
   an actual dispute is founder-mediated via direct SQL/dashboard access, on purpose, per PRODUCT.md's
