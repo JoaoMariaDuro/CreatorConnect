@@ -408,10 +408,15 @@ dispute-detail/resolution page in parallel once the backend was reviewed and loc
   two-step-confirm resolution panel). Every load function relies on the RLS/RPC layer as the real
   security boundary rather than re-checking admin status itself.
 
-**One manual step still required, same pattern as the SQL re-run**: `supabase/rpc-admin.sql` needs
+~~**One manual step still required, same pattern as the SQL re-run**: `supabase/rpc-admin.sql` needs
 to be run against the live project (README's setup order updated to reflect it), and — by design,
 per the access spec — there is no in-app way to grant yourself `is_platform_admin`. `supabase/README.md`
-now documents the exact one-time SQL statement.
+now documents the exact one-time SQL statement.~~ **DONE.** One snag along the way worth recording:
+the founder initially ran the `is_platform_admin = true` grant statement before re-running
+`schema.sql` (which is what actually adds the column) — `update ... set is_platform_admin`
+predictably failed with `column "is_platform_admin" of relation "profiles" does not exist`. Fixed by
+re-running `schema.sql` → `deals.sql` → `delegation.sql` → `rpc-admin.sql` in that order, then the
+grant statement succeeded. The founder confirmed admin access is live.
 
 ### What's still genuinely open
 
