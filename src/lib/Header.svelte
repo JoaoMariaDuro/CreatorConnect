@@ -22,6 +22,7 @@
 				<a href="/dashboard">Dashboard</a>
 				{#if profile?.role === 'creator' || profile?.role === 'manager'}
 					<a href="/create">Create Listing</a>
+					<a href="/settings/managers">{profile.role === 'creator' ? 'Managers' : 'My Roster'}</a>
 				{/if}
 			{/if}
 		</nav>

@@ -12,11 +12,12 @@
 	const profile = $derived(page.data.profile);
 	const supabase = $derived(page.data.supabase);
 
-	const isOwnerOrManager = $derived(!!user && !!listing && user.id === listing.creator_id);
-	// Full manager-delegation checking (manager_creator_links lookup) isn't wired into this page yet —
-	// creators acting on their own listings works end-to-end now; manager "confirm on behalf of"
-	// lands with mechanism A/C's RPCs in Phase 1-FastFollow, matching confirm_deal_as's design
-	// (it already accepts a manager caller, this page just doesn't surface that path yet).
+	// Real delegation check (direct ownership OR an active manager_creator_links row), computed
+	// server-side in +page.server.ts — matches confirm_deal_as's own is_authorized_for_creator logic,
+	// so a legitimately linked manager sees the same confirm/manage actions the creator does.
+	const isOwnerOrManager = $derived(
+		(!!user && !!listing && user.id === listing.creator_id) || data.isDelegatedManager
+	);
 	const isAdvertiser = $derived(profile?.role === 'advertiser');
 
 	let showReserveConfirm = $state(false);
@@ -80,6 +81,10 @@
 				<Badges status={listing.status} />
 			</div>
 		</div>
+
+		{#if data.isDelegatedManager}
+			<div class="acting-banner">Acting as {profile?.display_name} on behalf of {listing.creator?.display_name}</div>
+		{/if}
 
 		{#if listing.status === 'deal'}
 			<div class="deal-banner">This listing is a confirmed deal.</div>
@@ -193,6 +198,15 @@
 		padding: 10px 12px;
 		border-radius: var(--radius);
 		font-size: 14px;
+		margin: 12px 0;
+	}
+	.acting-banner {
+		background: var(--purple-bg);
+		color: var(--purple);
+		padding: 8px 12px;
+		border-radius: var(--radius);
+		font-size: 13px;
+		font-weight: 600;
 		margin: 12px 0;
 	}
 	.detail-grid {

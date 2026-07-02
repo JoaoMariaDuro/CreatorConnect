@@ -1,7 +1,7 @@
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ params, locals: { supabase } }) => {
-	if (!supabase) return { listing: null, reservation: null };
+export const load: PageServerLoad = async ({ params, locals: { safeGetSession, supabase } }) => {
+	if (!supabase) return { listing: null, reservation: null, isDelegatedManager: false };
 
 	const { data: listing } = await supabase
 		.from('creator_listings')
@@ -23,5 +23,24 @@ export const load: PageServerLoad = async ({ params, locals: { supabase } }) => 
 		reservation = data;
 	}
 
-	return { listing, reservation };
+	// Real manager-delegation check (not just direct ownership) — matches is_authorized_for_creator's
+	// logic server-side, so the UI shows the confirm/manage actions to a legitimately linked manager,
+	// not just the creator themselves. The RPCs enforce this independently regardless of what the UI
+	// shows (this is a UI-gating convenience, not the actual security boundary).
+	let isDelegatedManager = false;
+	if (listing) {
+		const { user } = await safeGetSession();
+		if (user && user.id !== listing.creator_id) {
+			const { data: link } = await supabase
+				.from('manager_creator_links')
+				.select('id')
+				.eq('manager_id', user.id)
+				.eq('creator_id', listing.creator_id)
+				.eq('status', 'active')
+				.maybeSingle();
+			isDelegatedManager = !!link;
+		}
+	}
+
+	return { listing, reservation, isDelegatedManager };
 };
