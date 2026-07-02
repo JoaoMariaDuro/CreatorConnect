@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto, invalidate } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import {
 		Compass,
 		LayoutDashboard,
@@ -9,7 +10,8 @@
 		Map,
 		LogOut,
 		LogIn,
-		Sparkles
+		Sparkles,
+		KeyRound
 	} from '@lucide/svelte';
 
 	const user = $derived(page.data.user);
@@ -25,6 +27,22 @@
 
 	function isActive(href: string) {
 		return href === '/' ? path === '/' : path.startsWith(href);
+	}
+
+	let pkSupported = $state(false);
+	let addingPasskey = $state(false);
+	let passkeyMsg = $state('');
+	onMount(() => {
+		pkSupported = typeof window !== 'undefined' && !!window.PublicKeyCredential;
+	});
+
+	async function addPasskey() {
+		if (!supabase) return;
+		addingPasskey = true;
+		passkeyMsg = '';
+		const { error } = await supabase.auth.registerPasskey();
+		addingPasskey = false;
+		passkeyMsg = error ? 'Could not add passkey.' : 'Passkey added.';
 	}
 </script>
 
@@ -67,6 +85,13 @@
 				<strong>{profile.display_name}</strong>
 				<span class="role-badge">{profile.role}</span>
 			</div>
+			{#if pkSupported}
+				<button class="nav-item ghost-btn" onclick={addPasskey} disabled={addingPasskey}>
+					<KeyRound size={17} />
+					<span>{addingPasskey ? 'Adding…' : 'Add a passkey'}</span>
+				</button>
+				{#if passkeyMsg}<span class="muted" style="font-size:11px; padding: 0 12px;">{passkeyMsg}</span>{/if}
+			{/if}
 			<button class="nav-item ghost-btn" onclick={signOut}>
 				<LogOut size={17} />
 				<span>Sign out</span>

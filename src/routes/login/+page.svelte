@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { onMount } from 'svelte';
 
 	let { data } = $props();
 	let email = $state('');
@@ -8,6 +9,34 @@
 	let sent = $state(false);
 	let loading = $state(false);
 	let err = $state('');
+
+	// Passkeys are only offered where the browser actually supports WebAuthn — feature-detected so
+	// the button never appears (and confuses) on a browser that can't do it. Matches Lota's pattern.
+	// Note: a brand-new passkey-only signup won't have role/display_name set — CompleteProfile.svelte
+	// (shown app-wide whenever a signed-in user has no profiles row yet) catches that case.
+	let pkSupported = $state(false);
+	let pkLoading = $state(false);
+	onMount(() => {
+		pkSupported = typeof window !== 'undefined' && !!window.PublicKeyCredential;
+	});
+
+	async function signInWithPasskey() {
+		err = '';
+		if (!data.supabaseReady || !data.supabase) {
+			err = "Supabase isn't configured yet — check .env.";
+			return;
+		}
+		pkLoading = true;
+		const { error } = await data.supabase.auth.signInWithPasskey();
+		pkLoading = false;
+		if (error) {
+			const name = (error as any).name || '';
+			if (name === 'NotAllowedError' || /abort|cancel/i.test(error.message || '')) return;
+			err = 'No passkey worked for this device. Use the magic link below, then add a passkey afterward.';
+			return;
+		}
+		window.location.href = '/dashboard';
+	}
 
 	// Unlike Lota (invite-only), CreatorConnect signup is open: shouldCreateUser defaults to true, and
 	// role/display_name are passed as signup metadata for schema.sql's handle_new_user trigger to pick
@@ -57,6 +86,12 @@
 			</p>
 			<button class="ghost" onclick={() => (sent = false)}>Use a different email</button>
 		{:else}
+			{#if pkSupported}
+				<button class="btn btn-primary" style="width:100%; justify-content:center; margin-bottom:12px;" onclick={signInWithPasskey} disabled={pkLoading}>
+					{pkLoading ? 'Waiting for passkey…' : 'Sign in with a passkey'}
+				</button>
+				<div class="divider"><span>or</span></div>
+			{/if}
 			<p class="sub">No password — we'll email you a one-click sign-in link.</p>
 			<form onsubmit={submit}>
 				<div class="field">
@@ -116,9 +151,26 @@
 	.field input,
 	.field select {
 		padding: 8px 12px;
-		border: 1px solid #ddd;
+		border: 1px solid var(--border-strong);
 		border-radius: 6px;
 		font-size: 15px;
+		background: var(--panel-raised);
+		color: var(--text);
+	}
+	.divider {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		margin: 4px 0 16px;
+		color: var(--text-muted);
+		font-size: 12px;
+	}
+	.divider::before,
+	.divider::after {
+		content: '';
+		flex: 1;
+		height: 1px;
+		background: var(--border);
 	}
 	.muted {
 		color: var(--text-muted);

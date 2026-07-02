@@ -16,7 +16,13 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 	const supabase =
 		url && key
 			? isBrowser()
-				? createBrowserClient(url, key, { global: { fetch } })
+				? // experimental.passkey opts into the WebAuthn passkey API (auth.signInWithPasskey /
+					// auth.registerPasskey). Browser-only — passkey ceremonies need navigator.credentials,
+					// so the flag lives on the browser client only, matching Lota's dashboard.
+					createBrowserClient(url, key, {
+						global: { fetch },
+						auth: { experimental: { passkey: true } }
+					})
 				: createServerClient(url, key, {
 						global: { fetch },
 						cookies: { getAll: () => data?.cookies ?? [] }
