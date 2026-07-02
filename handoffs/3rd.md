@@ -370,12 +370,23 @@ schema/RPC changes until this is done.~~ Founder confirmed all four files were r
 live project shortly after this log was first written. `supabase/README.md`'s temporary
 top-of-file notice has been removed now that it's no longer actionable.
 
+### Post-completion follow-on (same session, after this brief's own scope closed)
+
+The founder picked up one deferred item as a direct follow-on once this brief's backlog was fully
+closed and its SQL applied: **the manual performance-stats entry + display UI + staleness badge**
+(commit `c6299f0`). Scoped as an inline editor on the listing detail page (there's no listing-edit
+route anywhere in this app, so this deliberately did not become "build a general edit page" — it's
+gated the same way the existing manager-band editor on that same page already is, reusing the RLS
+window that restricts `creator_listings` edits to `draft`/`open` status). `performance_stats` had no
+defined field shape anywhere in any doc, so a minimal 2-field shape (`avg_views_per_post`,
+`engagement_rate_pct`) was chosen and documented inline — not a rediscovery of a prior spec, a new
+one. Badges only, matching PRODUCT.md §7 Q3's 60/180-day thresholds — no browse-listing reordering
+or deprioritization, which stays a separate, bigger decision for later.
+
 ### What's still genuinely open
 
 - The Founder/Admin dispute-resolution surface (task 11) — fully spec'd in
   `docs/ROLE_ACCESS_AND_UX_SPEC.md`, deliberately not built, waiting on real dispute volume.
-- The manual performance-stat entry + display UI, and the staleness badge itself (task 9) — schema
-  is ready, nothing else is built.
 - Everything this brief's own "explicitly out of scope" section named, unchanged: Stripe Connect,
   the sealed-bid tiebreaker, `ROADMAP.md` Phase 3, defaulting Mechanism D / featured rails, a full
   review/rating system beyond the minimal count shipped this session.
