@@ -23,15 +23,17 @@ exists`, `drop policy if exists` before `create policy`) so re-running one after
    `cron-scheduling.sql`, next). Mechanism-agnostic: works the same regardless of which mechanism
    produced the `deals` row, per the convergence-point design in `../docs/ARCHITECTURE.md` Section 2.
 8. [`rpc-delegation.sql`](./rpc-delegation.sql) — `invite_manager_by_email`, `accept_manager_link`.
-9. [`cron-scheduling.sql`](./cron-scheduling.sql) — schedules `expire_reservation` and
-   `release_delivery_balance` to run every 5 minutes via `pg_cron`. **Requires enabling the pg_cron
-   extension first**: Database → Extensions → search "pg_cron" → Enable, in the Supabase dashboard,
-   before running this file.
-10. [`rpc-mechanism-ac.sql`](./rpc-mechanism-ac.sql) — mechanisms A and C's RPC families
-    (`submit_offer_as`/`accept_offer_as`/`accept_offer_as_advertiser` for A;
-    `request_exclusivity_as`/`propose_exclusivity_terms_as`/`convert_exclusivity_as`/
-    `convert_exclusivity_as_advertiser` for C), plus `expire_exclusivity` (not yet scheduled — see
-    below). Phase 1-FastFollow, built on the pattern proven by `rpc-mechanism-d.sql`.
+9. [`rpc-mechanism-ac.sql`](./rpc-mechanism-ac.sql) — mechanisms A and C's RPC families
+   (`submit_offer_as`/`accept_offer_as`/`accept_offer_as_advertiser` for A;
+   `request_exclusivity_as`/`propose_exclusivity_terms_as`/`convert_exclusivity_as`/
+   `convert_exclusivity_as_advertiser` for C), plus `expire_exclusivity`, scheduled by
+   `cron-scheduling.sql`'s third job (see next). Phase 1-FastFollow, built on the pattern proven by
+   `rpc-mechanism-d.sql`. **Must run before `cron-scheduling.sql`**, since that file's third cron job
+   wraps `expire_exclusivity`, which this file defines.
+10. [`cron-scheduling.sql`](./cron-scheduling.sql) — schedules `expire_reservation`,
+    `release_delivery_balance`, and `expire_exclusivity` to run every 5 minutes via `pg_cron`.
+    **Requires enabling the pg_cron extension first**: Database → Extensions → search "pg_cron" →
+    Enable, in the Supabase dashboard, before running this file.
 
 ## Then: get the app talking to it
 
@@ -45,7 +47,7 @@ exists`, `drop policy if exists` before `create policy`) so re-running one after
    `.env` is gitignored — keys never get committed.
 3. Auth → Sign In / Providers → confirm **Email** is enabled (magic link, no password) and, if you
    want, disable Confirm email so the first-time signup lands the user straight into the app.
-4. Auth → URL Configuration → add `http://localhost:5299/auth/confirm` (and your deployed origin,
+4. Auth → URL Configuration → add `http://localhost:5173/auth/confirm` (and your deployed origin,
    later) to the **Redirect URLs** allow-list — the magic link won't work without this.
 
 ## What's NOT here yet
@@ -55,11 +57,6 @@ exists`, `drop policy if exists` before `create policy`) so re-running one after
   state machine, just no real money yet.
 - **The sealed-bid tiebreaker's RPCs** — deliberately deferred to Phase 1.5 per the roadmap; the
   tables exist, `place_reservation` currently just rejects contention outright.
-- **Mechanism C's expiry job isn't scheduled** — `expire_exclusivity` (in `rpc-mechanism-ac.sql`)
-  exists but `cron-scheduling.sql` only schedules D's two jobs. Add a third
-  `cron.schedule('expire-stale-exclusivity', '*/5 * * * *', 'select public.run_expire_stale_exclusivity();')`
-  (with a matching wrapper function, same per-row exception-handling pattern) when ready — low
-  priority since C has no deposit at risk, an expired grant just reopens the listing.
 - **Disputed deals still resolve manually** — `cron-scheduling.sql`'s auto-release only fires for
   non-disputed deals (`release_delivery_balance` already checks and skips disputed ones); resolving
   an actual dispute is founder-mediated via direct SQL/dashboard access, on purpose, per PRODUCT.md's

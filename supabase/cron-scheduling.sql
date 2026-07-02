@@ -1,4 +1,5 @@
--- CreatorConnect — pg_cron scheduling for expire_reservation and release_delivery_balance.
+-- CreatorConnect — pg_cron scheduling for expire_reservation, release_delivery_balance, and
+-- expire_exclusivity.
 -- Run after rpc-delivery.sql. See ../docs/ARCHITECTURE.md Section 5.
 --
 -- REQUIRES the pg_cron extension. On Supabase: Database → Extensions → search "pg_cron" → Enable.
@@ -45,8 +46,26 @@ begin
 	end loop;
 end $$;
 
+create or replace function public.run_expire_stale_exclusivity()
+returns void language plpgsql as $$
+declare
+	r record;
+begin
+	for r in
+		select id from public.listing_exclusivity_grants
+		where status = 'active' and window_ends_at < now()
+	loop
+		begin
+			perform public.expire_exclusivity(r.id);
+		exception when others then
+			raise warning 'expire_exclusivity failed for grant %: %', r.id, sqlerrm;
+		end;
+	end loop;
+end $$;
+
 select cron.schedule('expire-stale-reservations', '*/5 * * * *', 'select public.run_expire_stale_reservations();');
 select cron.schedule('release-delivered-balances', '*/5 * * * *', 'select public.run_release_delivered_balances();');
+select cron.schedule('expire-stale-exclusivity', '*/5 * * * *', 'select public.run_expire_stale_exclusivity();');
 
 -- To check job status/history later: select * from cron.job; select * from cron.job_run_details
 -- order by start_time desc limit 20;
