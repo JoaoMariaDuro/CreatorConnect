@@ -195,4 +195,18 @@
 	.ghost-btn {
 		cursor: pointer;
 	}
+
+	/* Match the breakpoint in app.css: below this width, take the
+	   sidebar out of fixed positioning and stack it above the main
+	   content at full width instead of squeezing content into a
+	   ~155px column. */
+	@media (max-width: 860px) {
+		.sidebar {
+			position: static;
+			width: 100%;
+			height: auto;
+			border-right: none;
+			border-bottom: 1px solid var(--border);
+		}
+	}
 </style>

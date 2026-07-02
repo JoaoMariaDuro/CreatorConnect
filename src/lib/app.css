@@ -65,6 +65,15 @@ code {
 	min-height: 100vh;
 }
 
+/* Below this width there isn't enough room for a 220px fixed sidebar
+   plus a usable content column, so the sidebar stacks above the
+   content instead of squeezing it. */
+@media (max-width: 860px) {
+	.app-main {
+		margin-left: 0;
+	}
+}
+
 .btn {
 	display: inline-flex;
 	align-items: center;
