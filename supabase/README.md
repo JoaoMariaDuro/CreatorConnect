@@ -19,10 +19,14 @@ exists`, `drop policy if exists` before `create policy`) so re-running one after
    logic), `confirm_deal_as`, `expire_reservation`. Deliberately D-only — mechanisms A/C's RPCs land
    in a later file, matching `../docs/ROADMAP.md`'s "ship D first" sequencing call.
 7. [`rpc-delivery.sql`](./rpc-delivery.sql) — `confirm_delivery_as` (advertiser sign-off),
-   `flag_dispute_as` (either party freezes release), `release_delivery_balance` (the function a
-   future pg_cron auto-release job will call — see "what's NOT here yet" below). Mechanism-agnostic:
-   works the same regardless of which mechanism produced the `deals` row, per the convergence-point
-   design in `../docs/ARCHITECTURE.md` Section 2.
+   `flag_dispute_as` (either party freezes release), `release_delivery_balance` (called by
+   `cron-scheduling.sql`, next). Mechanism-agnostic: works the same regardless of which mechanism
+   produced the `deals` row, per the convergence-point design in `../docs/ARCHITECTURE.md` Section 2.
+8. [`rpc-delegation.sql`](./rpc-delegation.sql) — `invite_manager_by_email`, `accept_manager_link`.
+9. [`cron-scheduling.sql`](./cron-scheduling.sql) — schedules `expire_reservation` and
+   `release_delivery_balance` to run every 5 minutes via `pg_cron`. **Requires enabling the pg_cron
+   extension first**: Database → Extensions → search "pg_cron" → Enable, in the Supabase dashboard,
+   before running this file.
 
 ## Then: get the app talking to it
 
@@ -45,10 +49,9 @@ exists`, `drop policy if exists` before `create policy`) so re-running one after
   `convert_exclusivity_as`) — Phase 1-FastFollow, per the roadmap.
 - **Stripe Connect integration** — the escrow tables exist but nothing writes to them yet. That's
   roadmap Phase 0 items 0.4/0.5, not done.
-- **pg_cron scheduling** for `expire_reservation` and `release_delivery_balance` — both functions
-  exist, nothing calls them on a timer yet. For now: reservations don't auto-expire past their
-  deadline, and delivered deals stay `delivered` until someone calls `release_delivery_balance`
-  manually (there's no UI button for this on purpose — v1's dispute/release model is founder-mediated
-  per `../docs/PRODUCT.md`, not self-service).
 - **The sealed-bid tiebreaker's RPCs** — deliberately deferred to Phase 1.5 per the roadmap; the
   tables exist, `place_reservation` currently just rejects contention outright.
+- **Disputed deals still resolve manually** — `cron-scheduling.sql`'s auto-release only fires for
+  non-disputed deals (`release_delivery_balance` already checks and skips disputed ones); resolving
+  an actual dispute is founder-mediated via direct SQL/dashboard access, on purpose, per PRODUCT.md's
+  "no self-service arbitration in v1."
