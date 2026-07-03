@@ -113,6 +113,7 @@
 	// schema since MVP with no UI. Shape kept minimal and explicit, same "documented minimal choice,
 	// not a rediscovery of a spec" reasoning already used for performance_stats above.
 	let constraintsDraft = $state('');
+	let cancellationTermsDraft = $state('');
 	let demoAgeRangeDraft = $state('');
 	let demoGenderSplitDraft = $state('');
 	let demoTopGeographyDraft = $state('');
@@ -122,6 +123,7 @@
 	$effect(() => {
 		if (listing) {
 			constraintsDraft = listing.constraints_text ?? '';
+			cancellationTermsDraft = listing.cancellation_terms ?? '';
 			demoAgeRangeDraft = listing.audience_demographics?.age_range ?? '';
 			demoGenderSplitDraft = listing.audience_demographics?.gender_split ?? '';
 			demoTopGeographyDraft = listing.audience_demographics?.top_geography ?? '';
@@ -138,7 +140,11 @@
 		if (demoTopGeographyDraft.trim()) audience_demographics.top_geography = demoTopGeographyDraft.trim();
 		const { error } = await supabase
 			.from('creator_listings')
-			.update({ constraints_text: constraintsDraft.trim() || null, audience_demographics })
+			.update({
+				constraints_text: constraintsDraft.trim() || null,
+				cancellation_terms: cancellationTermsDraft.trim() || null,
+				audience_demographics
+			})
 			.eq('id', listing.id);
 		extrasBusy = false;
 		if (error) { extrasErr = error.message; return; }
@@ -387,6 +393,11 @@
 						<hr class="sep" />
 						<div class="kv"><span class="muted">Constraints</span><strong>{listing.constraints_text}</strong></div>
 					{/if}
+
+					{#if listing.cancellation_terms}
+						<hr class="sep" />
+						<div class="kv"><span class="muted">Cancellation terms</span><strong>{listing.cancellation_terms}</strong></div>
+					{/if}
 				</div>
 
 				{#if isOwnerOrManager && (listing.status === 'draft' || listing.status === 'open')}
@@ -419,6 +430,11 @@
 						<div class="field">
 							<label for="extras-constraints">Constraints</label>
 							<input id="extras-constraints" type="text" bind:value={constraintsDraft} placeholder="e.g. no competitor brands to X" />
+						</div>
+						<div class="field" style="margin-top:10px;">
+							<label for="extras-cancellation">Cancellation terms</label>
+							<textarea id="extras-cancellation" bind:value={cancellationTermsDraft} placeholder="Leave blank to use the platform default"></textarea>
+							<span class="hint">Copied into the contract when a deal is confirmed on this listing. Leave blank for a standard non-refundable-once-confirmed default.</span>
 						</div>
 						<div class="field" style="margin-top:10px;">
 							<label for="extras-age">Audience age range</label>

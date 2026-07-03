@@ -2,6 +2,7 @@
 	let { data } = $props();
 	const company = $derived(data.company);
 	const members = $derived(data.members);
+	const representedCreators = $derived(data.representedCreators);
 </script>
 
 <svelte:head>
@@ -49,6 +50,26 @@
 						<strong>{m.profile.display_name}</strong>
 						<div class="muted" style="font-size:13px; margin-top:4px;">{m.role === 'owner' ? 'Owner' : 'Member'}</div>
 					</div>
+				{/if}
+			{/each}
+		</div>
+	{/if}
+
+	{#if company.company_type === 'manager' && representedCreators.length > 0}
+		<div class="section-title">Represented creators ({representedCreators.length})</div>
+		<div class="grid">
+			{#each representedCreators as c (c.id)}
+				{#if c.handle}
+					<a class="card listing-card" href={`/c/${c.handle}`}>
+						<strong>{c.display_name}</strong>
+						<div class="muted" style="font-size:13px; margin-top:4px;">
+							{#if c.follower_count}{c.follower_count.toLocaleString()} followers{/if}
+							{#if c.completed_deals_count > 0}· {c.completed_deals_count} completed deal{c.completed_deals_count === 1 ? '' : 's'}{/if}
+						</div>
+						{#if c.niche_tags?.length}
+							<div class="muted" style="font-size:13px; margin-top:2px;">{c.niche_tags.join(', ')}</div>
+						{/if}
+					</a>
 				{/if}
 			{/each}
 		</div>

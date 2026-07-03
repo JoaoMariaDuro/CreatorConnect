@@ -33,6 +33,8 @@ export const load: PageServerLoad = async ({ locals: { safeGetSession, supabase 
 	// two-query pattern the public pages use.
 	const activeMembership = memberships.find((m) => m.status === 'active');
 	let roster: any[] = [];
+	let myRepresentedCreators: any[] = [];
+	let showcased: any[] = [];
 	if (activeMembership) {
 		const { data: rosterData } = await supabase
 			.from('company_members')
@@ -42,7 +44,27 @@ export const load: PageServerLoad = async ({ locals: { safeGetSession, supabase 
 			.eq('company_id', activeMembership.company.id)
 			.order('created_at', { ascending: false });
 		roster = rosterData ?? [];
+
+		// Showcase (dual-consent public roster of represented creators) — manager/agency companies
+		// only. "My represented creators" is scoped to the CALLER's own manager_creator_links, not the
+		// whole company's, because propose_showcase_creator() only lets a member propose a creator
+		// they personally have the real delegated relationship with (company-showcase.sql's design).
+		if (activeMembership.company.company_type === 'manager') {
+			const { data: linked } = await supabase
+				.from('manager_creator_links')
+				.select('creator:public_profiles!manager_creator_links_creator_id_fkey (id, display_name, handle)')
+				.eq('manager_id', user.id)
+				.eq('status', 'active');
+			myRepresentedCreators = (linked ?? []).map((l: any) => l.creator).filter(Boolean);
+
+			const { data: showcaseData } = await supabase
+				.from('company_showcased_creators')
+				.select('id, creator_id, status, proposed_at, responded_at, creator:public_profiles!company_showcased_creators_creator_id_fkey (id, display_name, handle)')
+				.eq('company_id', activeMembership.company.id)
+				.order('proposed_at', { ascending: false });
+			showcased = showcaseData ?? [];
+		}
 	}
 
-	return { profile, memberships, roster };
+	return { profile, memberships, roster, myRepresentedCreators, showcased };
 };

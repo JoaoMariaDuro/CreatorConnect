@@ -16,7 +16,18 @@ export const load: PageServerLoad = async ({ locals: { safeGetSession, supabase 
 			.select('id, status, granted_at, revoked_at, manager:public_profiles!manager_creator_links_manager_id_fkey (id, display_name, handle)')
 			.eq('creator_id', user.id)
 			.order('created_at', { ascending: false });
-		return { profile, links: (data ?? []) as any[] };
+
+		// Showcase proposals (company-showcase.sql): dual-consent, this creator's own responses only —
+		// self-read on the base table (RLS's creator_id = auth.uid() clause covers it), embedding
+		// public_companies via the real company_showcased_creators_company_id_fkey constraint, same
+		// proven-safe pattern used throughout this codebase.
+		const { data: showcaseData } = await supabase
+			.from('company_showcased_creators')
+			.select('id, status, proposed_at, responded_at, company:public_companies!company_showcased_creators_company_id_fkey (id, name, handle)')
+			.eq('creator_id', user.id)
+			.order('proposed_at', { ascending: false });
+
+		return { profile, links: (data ?? []) as any[], showcaseRequests: (showcaseData ?? []) as any[] };
 	}
 
 	// manager

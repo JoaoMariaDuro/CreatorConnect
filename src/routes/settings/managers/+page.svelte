@@ -37,6 +37,30 @@
 		accepting = null;
 		await invalidateAll();
 	}
+
+	// Showcase requests: a manager/agency company proposing to publicly feature this creator.
+	// Dual-consent (company-showcase.sql) — nothing shows up on the company's public page until the
+	// creator responds here.
+	let respondingId = $state<string | null>(null);
+
+	async function respondShowcase(showcaseId: string, showcaseAccept: boolean) {
+		if (!supabase) return;
+		respondingId = showcaseId;
+		await supabase.rpc('respond_showcase_creator', { p_showcase_id: showcaseId, p_accept: showcaseAccept });
+		respondingId = null;
+		await invalidateAll();
+	}
+
+	// Withdrawing consent AFTER already accepting isn't a "response" (respond_showcase_creator only
+	// accepts a still-pending row) — it's a plain RLS-gated update, same "creator manages own showcase
+	// consent" policy that lets them do this at any time (company-showcase.sql).
+	async function withdrawShowcase(showcaseId: string) {
+		if (!supabase) return;
+		respondingId = showcaseId;
+		await supabase.from('company_showcased_creators').update({ status: 'declined', responded_at: new Date().toISOString() }).eq('id', showcaseId);
+		respondingId = null;
+		await invalidateAll();
+	}
 </script>
 
 <div class="container narrow">
@@ -74,6 +98,37 @@
 							</div>
 							{#if l.status !== 'revoked'}
 								<button class="btn btn-sm" style="color:var(--red);" onclick={() => revoke(l.id)}>Revoke</button>
+							{/if}
+						</div>
+					</div>
+				{/each}
+			</div>
+		{/if}
+
+		{#if data.showcaseRequests?.length}
+			<div class="section-title">Showcase requests</div>
+			<p class="muted" style="font-size:13px;">
+				An agency wants to feature you on their public company page. Nothing is shown publicly unless you accept.
+			</p>
+			<div class="stack">
+				{#each data.showcaseRequests as s (s.id)}
+					<div class="card">
+						<div class="row" style="justify-content: space-between;">
+							<div>
+								<strong>{s.company?.name}</strong>
+								<span class="badge" style="margin-left:8px; background:var(--panel-raised); color:var(--text-muted);">{s.status}</span>
+							</div>
+							{#if s.status === 'pending'}
+								<div class="row" style="gap:6px;">
+									<button class="btn btn-primary btn-sm" onclick={() => respondShowcase(s.id, true)} disabled={respondingId === s.id}>
+										Accept
+									</button>
+									<button class="btn btn-sm" onclick={() => respondShowcase(s.id, false)} disabled={respondingId === s.id}>
+										Decline
+									</button>
+								</div>
+							{:else if s.status === 'accepted'}
+								<button class="btn btn-sm" style="color:var(--red);" onclick={() => withdrawShowcase(s.id)}>Remove</button>
 							{/if}
 						</div>
 					</div>

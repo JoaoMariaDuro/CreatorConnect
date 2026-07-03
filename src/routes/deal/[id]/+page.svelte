@@ -56,11 +56,15 @@
 	{#if !deal}
 		<div class="empty">No confirmed deal found.</div>
 	{:else}
-		<a href={`/listings/${deal.listing_id}`} class="back-link">&larr; Back to listing</a>
+		<a href={`/listings/${deal.listing_id}`} class="back-link no-print">&larr; Back to listing</a>
 
 		{#if data.isDelegatedManager}
-			<div class="acting-banner">Acting as {profile?.display_name} on behalf of {deal.creator?.display_name}</div>
+			<div class="acting-banner no-print">Acting as {profile?.display_name} on behalf of {deal.creator?.display_name}</div>
 		{/if}
+
+		<button class="btn btn-sm no-print" style="margin-bottom:12px;" onclick={() => window.print()}>
+			Print / Save as PDF
+		</button>
 
 		<div class="contract card">
 			<div class="contract-header">
@@ -97,6 +101,9 @@
 				<div class="kv"><span class="muted">Delivery date</span><strong>{formatDate(deal.delivery_due_at)}</strong></div>
 			{/if}
 			<div class="kv"><span class="muted">Disclosure requirement</span><strong>{deal.disclosure_terms}</strong></div>
+			{#if deal.cancellation_terms}
+				<div class="kv"><span class="muted">Cancellation terms</span><strong>{deal.cancellation_terms}</strong></div>
+			{/if}
 
 			<div class="section-title">Pricing</div>
 			<div class="kv"><span class="muted">Total price</span><strong>{formatMoney(deal.final_price_cents)}</strong></div>
@@ -114,35 +121,37 @@
 				<div class="kv"><span class="muted">Auto-release scheduled</span><strong>{formatDateTime(deal.auto_release_at)}</strong></div>
 			{/if}
 
-			{#if deal.status === 'active' && isAdvertiser}
-				<hr class="sep" />
-				<p class="muted" style="font-size:13px;">Once the creator delivers, confirm it here to start the 5-day release window.</p>
-				<div class="row">
-					<button class="btn btn-primary btn-sm" onclick={confirmDelivery} disabled={busy}>
-						{busy ? 'Confirming…' : 'Confirm delivery'}
-					</button>
-					<button class="btn btn-sm" style="color:var(--red);" onclick={() => (showDisputeForm = true)}>Flag a dispute</button>
-				</div>
-			{:else if (deal.status === 'active' || deal.status === 'delivered') && isParty}
-				<hr class="sep" />
-				<button class="btn btn-sm" style="color:var(--red);" onclick={() => (showDisputeForm = true)}>Flag a dispute</button>
-			{/if}
-
-			{#if showDisputeForm}
-				<div class="confirm-box">
-					<p style="margin-top:0;">This freezes the remaining balance for manual, founder-mediated resolution — no automated arbitration in v1.</p>
-					<div class="field">
-						<label for="dispute-reason">Reason (optional)</label>
-						<textarea id="dispute-reason" bind:value={disputeReason}></textarea>
-					</div>
+			<div class="no-print">
+				{#if deal.status === 'active' && isAdvertiser}
+					<hr class="sep" />
+					<p class="muted" style="font-size:13px;">Once the creator delivers, confirm it here to start the 5-day release window.</p>
 					<div class="row">
-						<button class="btn btn-primary btn-sm" style="background:var(--red); border-color:var(--red);" onclick={flagDispute} disabled={busy}>
-							{busy ? 'Flagging…' : 'Confirm dispute'}
+						<button class="btn btn-primary btn-sm" onclick={confirmDelivery} disabled={busy}>
+							{busy ? 'Confirming…' : 'Confirm delivery'}
 						</button>
-						<button class="btn btn-sm" onclick={() => (showDisputeForm = false)}>Cancel</button>
+						<button class="btn btn-sm" style="color:var(--red);" onclick={() => (showDisputeForm = true)}>Flag a dispute</button>
 					</div>
-				</div>
-			{/if}
+				{:else if (deal.status === 'active' || deal.status === 'delivered') && isParty}
+					<hr class="sep" />
+					<button class="btn btn-sm" style="color:var(--red);" onclick={() => (showDisputeForm = true)}>Flag a dispute</button>
+				{/if}
+
+				{#if showDisputeForm}
+					<div class="confirm-box">
+						<p style="margin-top:0;">This freezes the remaining balance for manual, founder-mediated resolution — no automated arbitration in v1.</p>
+						<div class="field">
+							<label for="dispute-reason">Reason (optional)</label>
+							<textarea id="dispute-reason" bind:value={disputeReason}></textarea>
+						</div>
+						<div class="row">
+							<button class="btn btn-primary btn-sm" style="background:var(--red); border-color:var(--red);" onclick={flagDispute} disabled={busy}>
+								{busy ? 'Flagging…' : 'Confirm dispute'}
+							</button>
+							<button class="btn btn-sm" onclick={() => (showDisputeForm = false)}>Cancel</button>
+						</div>
+					</div>
+				{/if}
+			</div>
 
 			{#if deal.status === 'disputed'}
 				<hr class="sep" />
@@ -157,8 +166,8 @@
 
 			{#if err}<p class="warn">{err}</p>{/if}
 
-			<hr class="sep" />
-			<p class="muted" style="font-size:12px;">
+			<hr class="sep no-print" />
+			<p class="muted no-print" style="font-size:12px;">
 				Escrow/Stripe Connect isn't wired up yet (roadmap Phase 0 items 0.4/0.5) — this reflects the
 				real <code>deals</code> row and its real status transitions, but no payment has actually moved.
 			</p>

@@ -42,5 +42,25 @@ export const load: PageServerLoad = async ({ params, locals: { supabase } }) => 
 			.filter((r) => r.profile);
 	}
 
-	return { company, members };
+	// Represented creators (company-showcase.sql) — manager/agency companies only, and only rows
+	// both sides consented to (public_company_showcase already filters to status = 'accepted'). Same
+	// two-query pattern as the roster above, for the same reason: the view has no real FK to embed
+	// against.
+	let representedCreators: any[] = [];
+	if (company.company_type === 'manager') {
+		const { data: showcaseRows } = await supabase
+			.from('public_company_showcase')
+			.select('creator_id')
+			.eq('company_id', company.id);
+		const creatorIds = (showcaseRows ?? []).map((r) => r.creator_id);
+		if (creatorIds.length) {
+			const { data: creatorProfiles } = await supabase
+				.from('public_profiles')
+				.select('id, display_name, handle, avatar_url, niche_tags, follower_count, completed_deals_count')
+				.in('id', creatorIds);
+			representedCreators = creatorProfiles ?? [];
+		}
+	}
+
+	return { company, members, representedCreators };
 };

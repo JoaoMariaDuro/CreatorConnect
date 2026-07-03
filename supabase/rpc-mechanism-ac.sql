@@ -103,13 +103,14 @@ begin
 	update public.listing_offers set status = 'accepted' where id = p_offer_id;
 	update public.creator_listings set status = 'deal' where id = v_listing.id;
 
-	insert into public.deals (offer_id, listing_id, creator_id, advertiser_id, manager_id, final_price_cents, deliverable_spec, disclosure_terms)
+	insert into public.deals (offer_id, listing_id, creator_id, advertiser_id, manager_id, final_price_cents, deliverable_spec, disclosure_terms, cancellation_terms)
 	values (
 		p_offer_id, v_listing.id, p_creator_id, v_offer.advertiser_id,
 		case when v_is_manager then auth.uid() else null end,
 		v_offer.offer_amount_cents,
 		jsonb_build_object('platform', v_listing.platform, 'contentType', v_listing.content_type, 'description', v_listing.description),
-		'#ad — this content includes a paid partnership. Disclosure terms per FTC Endorsement Guides.'
+		'#ad — this content includes a paid partnership. Disclosure terms per FTC Endorsement Guides.',
+		coalesce(v_listing.cancellation_terms, public.default_cancellation_terms())
 	)
 	returning * into v_deal;
 
@@ -147,11 +148,12 @@ begin
 	update public.listing_offers set status = 'accepted' where id = p_offer_id;
 	update public.creator_listings set status = 'deal' where id = v_listing.id;
 
-	insert into public.deals (offer_id, listing_id, creator_id, advertiser_id, final_price_cents, deliverable_spec, disclosure_terms)
+	insert into public.deals (offer_id, listing_id, creator_id, advertiser_id, final_price_cents, deliverable_spec, disclosure_terms, cancellation_terms)
 	values (
 		p_offer_id, v_listing.id, v_listing.creator_id, v_offer.advertiser_id, v_offer.offer_amount_cents,
 		jsonb_build_object('platform', v_listing.platform, 'contentType', v_listing.content_type, 'description', v_listing.description),
-		'#ad — this content includes a paid partnership. Disclosure terms per FTC Endorsement Guides.'
+		'#ad — this content includes a paid partnership. Disclosure terms per FTC Endorsement Guides.',
+		coalesce(v_listing.cancellation_terms, public.default_cancellation_terms())
 	)
 	returning * into v_deal;
 
@@ -286,13 +288,14 @@ begin
 	update public.listing_exclusivity_grants set status = 'converted' where id = p_grant_id;
 	update public.creator_listings set status = 'deal' where id = v_listing.id;
 
-	insert into public.deals (exclusivity_grant_id, listing_id, creator_id, advertiser_id, manager_id, final_price_cents, deliverable_spec, disclosure_terms)
+	insert into public.deals (exclusivity_grant_id, listing_id, creator_id, advertiser_id, manager_id, final_price_cents, deliverable_spec, disclosure_terms, cancellation_terms)
 	values (
 		p_grant_id, v_listing.id, p_creator_id, v_grant.advertiser_id,
 		case when v_is_manager then auth.uid() else null end,
 		v_price,
 		jsonb_build_object('platform', v_listing.platform, 'contentType', v_listing.content_type, 'description', coalesce(v_terms, v_listing.description)),
-		'#ad — this content includes a paid partnership. Disclosure terms per FTC Endorsement Guides.'
+		'#ad — this content includes a paid partnership. Disclosure terms per FTC Endorsement Guides.',
+		coalesce(v_listing.cancellation_terms, public.default_cancellation_terms())
 	)
 	returning * into v_deal;
 
@@ -334,11 +337,12 @@ begin
 	update public.listing_exclusivity_grants set status = 'converted' where id = p_grant_id;
 	update public.creator_listings set status = 'deal' where id = v_listing.id;
 
-	insert into public.deals (exclusivity_grant_id, listing_id, creator_id, advertiser_id, final_price_cents, deliverable_spec, disclosure_terms)
+	insert into public.deals (exclusivity_grant_id, listing_id, creator_id, advertiser_id, final_price_cents, deliverable_spec, disclosure_terms, cancellation_terms)
 	values (
 		p_grant_id, v_listing.id, v_listing.creator_id, v_grant.advertiser_id, v_price,
 		jsonb_build_object('platform', v_listing.platform, 'contentType', v_listing.content_type, 'description', coalesce(v_terms, v_listing.description)),
-		'#ad — this content includes a paid partnership. Disclosure terms per FTC Endorsement Guides.'
+		'#ad — this content includes a paid partnership. Disclosure terms per FTC Endorsement Guides.',
+		coalesce(v_listing.cancellation_terms, public.default_cancellation_terms())
 	)
 	returning * into v_deal;
 

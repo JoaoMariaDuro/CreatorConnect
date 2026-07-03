@@ -15,6 +15,7 @@ create table if not exists public.creator_listings (
   availability_window   text        not null, -- freeform for MVP, e.g. "Week of Aug 10-17, 2026"
   description           text        not null default '',
   constraints_text       text,
+  cancellation_terms     text, -- creator-set, copied into deals.cancellation_terms at confirmation time (rpc-mechanism-d.sql / rpc-mechanism-ac.sql); null falls back to a platform default there
 
   pricing_mechanism     text        not null check (pricing_mechanism in ('A', 'C', 'D')),
 
@@ -48,6 +49,7 @@ create table if not exists public.creator_listings (
 );
 
 alter table public.creator_listings add column if not exists performance_stats_updated_at timestamptz;
+alter table public.creator_listings add column if not exists cancellation_terms text;
 
 alter table public.creator_listings enable row level security;
 

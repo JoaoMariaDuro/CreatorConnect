@@ -12,6 +12,13 @@ function uses `create or replace function`, so if your project already ran the o
 just re-run these 5 files again (in the same relative order as the numbered list below) to pick up
 the notification writes — no data is lost, nothing else changes.
 
+**Update note (cancellation terms):** `listings.sql` now has a `creator_listings.cancellation_terms`
+column (editable on `/listings/[id]`'s "Listing extras" card), and `rpc-mechanism-d.sql` /
+`rpc-mechanism-ac.sql` copy it into `deals.cancellation_terms` at confirmation time (falling back to
+a new `default_cancellation_terms()` helper when a creator hasn't set one). If your project already
+ran these files, re-run `listings.sql`, then `rpc-mechanism-d.sql`, then `rpc-mechanism-ac.sql` (in
+that order — the helper function is defined in the first file and used by the second).
+
 1. [`schema.sql`](./schema.sql) — profiles table + the trigger that creates a profile row on signup.
 2. [`listings.sql`](./listings.sql) — `creator_listings`, the pricing-mechanism-aware listing table.
 3. [`negotiations.sql`](./negotiations.sql) — the three mechanism-specific negotiation tables
@@ -69,6 +76,13 @@ the notification writes — no data is lost, nothing else changes.
     designed but never built until now). Plain RLS, no RPC — self-scoped both directions, an
     advertiser's shortlist is private. Only depends on `schema.sql` (`profiles`) and `listings.sql`
     (`creator_listings`), so it can run any time after step 2.
+17. [`company-showcase.sql`](./company-showcase.sql) — `company_showcased_creators`: lets a
+    manager/agency company publicly display which creators it represents on `/company/[handle]`,
+    with dual consent (the agency proposes, the creator must separately accept — neither side can
+    grant consent alone, enforced by RLS, not just app logic). Depends on `companies.sql` (step 13)
+    and `delegation.sql` (`manager_creator_links`, step 5).
+18. [`rpc-company-showcase.sql`](./rpc-company-showcase.sql) — `propose_showcase_creator`,
+    `respond_showcase_creator`. Must run after `company-showcase.sql` (step 17).
 
 **Note on `schema.sql`'s `public_profiles` view**: this session widened it to also expose `bio`
 (needed by `/u/[handle]`, the new advertiser/manager individual profile page — see the view's own

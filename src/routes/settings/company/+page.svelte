@@ -78,6 +78,41 @@
 		if (error) { revokeErr = error.message; return; }
 		await invalidateAll();
 	}
+
+	// Showcase: creators the CALLER personally represents (own manager_creator_links), not yet
+	// showcased (or previously declined) for this company — propose_showcase_creator() re-checks the
+	// relationship server-side regardless of what this filter shows.
+	const showcasableCreators = $derived(
+		(data.myRepresentedCreators ?? []).filter(
+			(c: any) => !data.showcased?.some((s: any) => s.creator_id === c.id && s.status !== 'declined')
+		)
+	);
+	let proposingId = $state<string | null>(null);
+	let showcaseErr = $state('');
+
+	async function proposeShowcase(creatorId: string) {
+		if (!supabase || !activeMembership) return;
+		proposingId = creatorId;
+		showcaseErr = '';
+		const { error } = await supabase.rpc('propose_showcase_creator', {
+			p_company_id: activeMembership.company.id,
+			p_creator_id: creatorId
+		});
+		proposingId = null;
+		if (error) { showcaseErr = error.message; return; }
+		await invalidateAll();
+	}
+
+	async function retractShowcase(showcaseId: string) {
+		if (!supabase) return;
+		showcaseErr = '';
+		const { error } = await supabase
+			.from('company_showcased_creators')
+			.update({ status: 'declined', responded_at: new Date().toISOString() })
+			.eq('id', showcaseId);
+		if (error) { showcaseErr = error.message; return; }
+		await invalidateAll();
+	}
 </script>
 
 <div class="container narrow">
@@ -153,6 +188,45 @@
 					</div>
 				{/each}
 			</div>
+
+			{#if activeMembership.company.company_type === 'manager'}
+				<div class="section-title">Represented creators (public showcase)</div>
+				<p class="muted" style="font-size:13px;">
+					Propose showcasing a creator you represent on your public company page. They have to accept before anyone sees it.
+				</p>
+				{#if showcaseErr}<p class="warn">{showcaseErr}</p>{/if}
+				{#if data.showcased?.length}
+					<div class="stack" style="margin-bottom:12px;">
+						{#each data.showcased as s (s.id)}
+							<div class="card">
+								<div class="row" style="justify-content: space-between;">
+									<div>
+										<strong>{s.creator?.display_name}</strong>
+										<span class="badge" style="margin-left:8px; background:var(--panel-raised); color:var(--text-muted);">{s.status}</span>
+									</div>
+									{#if s.status !== 'declined'}
+										<button class="btn btn-sm" style="color:var(--red);" onclick={() => retractShowcase(s.id)}>Remove</button>
+									{/if}
+								</div>
+							</div>
+						{/each}
+					</div>
+				{/if}
+				{#if showcasableCreators.length}
+					<div class="stack">
+						{#each showcasableCreators as c (c.id)}
+							<div class="card">
+								<div class="row" style="justify-content: space-between;">
+									<strong>{c.display_name}</strong>
+									<button class="btn btn-sm" onclick={() => proposeShowcase(c.id)} disabled={proposingId === c.id}>
+										{proposingId === c.id ? 'Proposing…' : 'Propose showcase'}
+									</button>
+								</div>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			{/if}
 		{:else if pendingMemberships.length === 0}
 			<div class="section-title">Create a company</div>
 			<div class="card">

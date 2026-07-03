@@ -10,6 +10,16 @@
 -- deposit-taking marketplace" — that's worth getting right before Stripe is even wired up, since it's
 -- a pure DB-layer correctness problem, testable independent of payments.
 
+-- Shared default, reused by every mechanism's confirm/accept RPC when a listing's creator never set
+-- creator_listings.cancellation_terms (listings.sql) — same "generic boilerplate unless the creator
+-- overrides it per listing" shape already used for disclosure_terms, just listing-overridable instead
+-- of a hardcoded constant, since cancellation policy is more plausibly something a creator wants to
+-- customize than the FTC disclosure line is.
+create or replace function public.default_cancellation_terms()
+returns text language sql immutable as $$
+  select 'This booking is non-refundable once confirmed. Either party may flag a delivery dispute before the delivery window closes if the deliverable does not match the agreed spec.';
+$$;
+
 -- Shared band-check helper, reused by every mechanism's confirm/accept RPC (only D's is defined here;
 -- A/C's call sites come with their own RPCs in the fast-follow file).
 create or replace function public.check_price_band(p_listing_id uuid, p_price_cents int)
@@ -139,7 +149,7 @@ begin
 
   insert into public.deals (
     reservation_id, listing_id, creator_id, advertiser_id, manager_id,
-    final_price_cents, deliverable_spec, delivery_due_at, disclosure_terms
+    final_price_cents, deliverable_spec, delivery_due_at, disclosure_terms, cancellation_terms
   )
   values (
     p_reservation_id, v_listing.id, p_creator_id, v_reservation.advertiser_id,
@@ -147,7 +157,8 @@ begin
     p_price_cents,
     jsonb_build_object('platform', v_listing.platform, 'contentType', v_listing.content_type, 'description', v_listing.description),
     null,
-    '#ad — this content includes a paid partnership. Disclosure terms per FTC Endorsement Guides.'
+    '#ad — this content includes a paid partnership. Disclosure terms per FTC Endorsement Guides.',
+    coalesce(v_listing.cancellation_terms, public.default_cancellation_terms())
   )
   returning * into v_deal;
 

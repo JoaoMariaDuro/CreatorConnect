@@ -78,6 +78,10 @@
 	function notificationHref(n: any): string {
 		if (n.payload?.deal_id) return `/deal/${n.payload.deal_id}`;
 		if (n.payload?.listing_id) return `/listings/${n.payload.listing_id}`;
+		// A showcase proposal notifies the CREATOR, who has no /settings/company page (company
+		// affiliation is advertiser/manager-only) — their response lives on /settings/managers
+		// instead. Every other company_id-carrying type is company-member-facing.
+		if (n.type === 'company_showcase.proposed') return '/settings/managers';
 		if (n.payload?.company_id) return '/settings/company';
 		return '#';
 	}
