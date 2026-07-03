@@ -40,6 +40,10 @@ exists`, `drop policy if exists` before `create policy`) so re-running one after
     (see `/settings` in the app). Both gated by `schema.sql`'s `is_platform_admin()`. Depends on
     `deals` (`deals.sql`), `audit_log` (`delegation.sql`), and `is_platform_admin()` (`schema.sql`),
     so it runs last.
+12. [`feedback.sql`](./feedback.sql) — `feedback` table backing the top bar's "Report an issue" /
+    "Suggest an idea" flow. Plain client-side insert with RLS, not a security-definer RPC — this is
+    low-stakes user-submitted content, not an audit trail. Only depends on `schema.sql` (`profiles`,
+    `is_platform_admin()`), so it can run any time after that.
 
 ## Then: get the app talking to it
 
