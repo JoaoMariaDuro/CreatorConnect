@@ -10,7 +10,6 @@
 		Map,
 		LogOut,
 		LogIn,
-		Sparkles,
 		KeyRound,
 		ShieldAlert,
 		Settings
@@ -54,11 +53,6 @@
 </script>
 
 <aside class="sidebar">
-	<a class="logo" href="/">
-		<Sparkles size={20} />
-		<span>CreatorConnect</span>
-	</a>
-
 	<nav>
 		<a class="nav-item" class:active={isActive('/browse')} href="/browse">
 			<Compass size={17} />
@@ -132,25 +126,11 @@
 		display: flex;
 		flex-direction: column;
 		position: fixed;
-		top: 0;
+		top: var(--topbar-h);
 		left: 0;
-		height: 100vh;
+		height: calc(100vh - var(--topbar-h));
 		overflow-y: auto;
 		padding: 16px 12px;
-	}
-	.logo {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-weight: 800;
-		font-size: 15px;
-		color: var(--text);
-		padding: 8px 10px 20px;
-		overflow: hidden;
-		white-space: nowrap;
-	}
-	.logo:hover {
-		text-decoration: none;
 	}
 	nav {
 		display: flex;
@@ -244,7 +224,6 @@
 		   fixed non-shrinking box and let symmetric padding read as centered
 		   instead of centering the whole (icon + clipped label) flex line —
 		   the latter drifts off-box once the wide label is factored in. */
-		.logo :global(svg),
 		.nav-item :global(svg) {
 			flex-shrink: 0;
 		}
@@ -262,12 +241,16 @@
 	/* Match the breakpoint in app.css: below this width, take the
 	   sidebar out of fixed positioning and stack it above the main
 	   content at full width instead of squeezing content into a
-	   ~155px column. */
+	   ~155px column. Since it's now in normal document flow (not fixed),
+	   it needs its own top offset so it starts below the fixed top bar
+	   instead of being covered by it — app-main's padding-top doesn't
+	   reach this flow-sibling. */
 	@media (max-width: 860px) {
 		.sidebar {
 			position: static;
 			width: 100%;
 			height: auto;
+			margin-top: var(--topbar-h);
 			border-right: none;
 			border-bottom: 1px solid var(--border);
 		}

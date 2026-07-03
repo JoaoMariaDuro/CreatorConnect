@@ -3,6 +3,7 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import '$lib/app.css';
 	import Sidebar from '$lib/Sidebar.svelte';
+	import TopBar from '$lib/TopBar.svelte';
 	import CompleteProfile from '$lib/CompleteProfile.svelte';
 
 	let { children } = $props();
@@ -17,6 +18,7 @@
 	<title>CreatorConnect</title>
 </svelte:head>
 
+<TopBar />
 <div class="app-shell">
 	<Sidebar />
 	<div class="app-main">
