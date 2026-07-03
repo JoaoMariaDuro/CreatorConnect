@@ -11,7 +11,7 @@ export const load: PageServerLoad = async ({ locals: { safeGetSession, supabase 
 	if (profile.role === 'creator') {
 		const { data: listings } = await supabase
 			.from('creator_listings')
-			.select('id, platform, content_type, availability_window, pricing_mechanism, status')
+			.select('id, platform, content_type, availability_window, pricing_mechanism, status, floor_price_cents, rate_card_low_cents, rate_card_high_cents')
 			.eq('creator_id', user.id)
 			.order('created_at', { ascending: false });
 

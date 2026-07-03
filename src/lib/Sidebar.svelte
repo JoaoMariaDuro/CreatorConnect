@@ -73,6 +73,10 @@
 					<span>{profile.role === 'creator' ? 'Managers' : 'My Roster'}</span>
 				</a>
 			{/if}
+			<a class="nav-item" class:active={path === '/settings'} href="/settings">
+				<Settings size={17} />
+				<span>Settings</span>
+			</a>
 		{/if}
 		<a class="nav-item" class:active={isActive('/roadmap')} href="/roadmap">
 			<Map size={17} />
@@ -82,10 +86,6 @@
 			<a class="nav-item admin" class:active={isActive('/admin')} href="/admin">
 				<ShieldAlert size={17} />
 				<span>Admin</span>
-			</a>
-			<a class="nav-item" class:active={path === '/settings'} href="/settings">
-				<Settings size={17} />
-				<span>Test Settings</span>
 			</a>
 		{/if}
 	</nav>

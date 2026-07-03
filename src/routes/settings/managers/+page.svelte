@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { invalidateAll } from '$app/navigation';
+	import { formatMoney, formatDate } from '$lib/format';
 
 	let { data } = $props();
 	const profile = $derived(data.profile);
@@ -108,9 +109,55 @@
 			<div class="stack">
 				{#each data.links.filter((l: any) => l.status === 'active') as l (l.id)}
 					<div class="card">
-						<strong>{l.creator?.display_name}</strong>
-						<span class="muted" style="font-size:13px; margin-left:8px;">{l.creator?.handle ?? ''}</span>
+						<div class="row" style="justify-content: space-between;">
+							<strong>{l.creator?.display_name}</strong>
+							<span class="muted" style="font-size:13px;">{(l.commission_bps / 100).toFixed(1)}% commission</span>
+						</div>
+						<div class="muted" style="font-size:13px; margin-top:4px;">
+							{l.creator?.handle ?? ''}
+							{#if l.creator?.follower_count}· {l.creator.follower_count.toLocaleString()} followers{/if}
+							· {l.creator?.completed_deals_count ?? 0} completed deal{(l.creator?.completed_deals_count ?? 0) === 1 ? '' : 's'}
+						</div>
+						{#if l.creator?.niche_tags?.length}
+							<div class="row" style="gap:6px; margin-top:8px; flex-wrap:wrap;">
+								{#each l.creator.niche_tags as tag (tag)}
+									<span class="badge" style="background:var(--panel-raised); color:var(--text-muted);">{tag}</span>
+								{/each}
+							</div>
+						{/if}
 					</div>
+				{/each}
+			</div>
+		{/if}
+
+		{#if data.commissionLedger?.length}
+			<div class="section-title">Commission ledger</div>
+			<div class="stack">
+				{#each data.commissionLedger as d (d.id)}
+					<a class="card ledger-row" href={`/deal/${d.id}`}>
+						<div class="row" style="justify-content: space-between;">
+							<strong>{d.creator?.display_name}</strong>
+							<strong>{formatMoney(d.commission_cents)}</strong>
+						</div>
+						<div class="muted" style="font-size:13px; margin-top:4px;">
+							{formatMoney(d.final_price_cents)} deal · {d.status}
+							{#if d.confirmed_at}· {formatDate(d.confirmed_at)}{/if}
+						</div>
+					</a>
+				{/each}
+			</div>
+		{/if}
+
+		{#if data.bands?.length}
+			<div class="section-title">Your auto-accept bands</div>
+			<div class="stack">
+				{#each data.bands as b (b.id)}
+					<a class="card ledger-row" href={`/listings/${b.listing_id}`}>
+						<div class="row" style="justify-content: space-between;">
+							<strong>{b.listing?.creator?.display_name} — {b.listing?.content_type} on {b.listing?.platform}</strong>
+							<strong>{formatMoney(b.auto_accept_floor_cents)}+</strong>
+						</div>
+					</a>
 				{/each}
 			</div>
 		{/if}
@@ -126,5 +173,14 @@
 	.warn {
 		color: var(--red);
 		font-size: 13px;
+	}
+	.ledger-row {
+		display: block;
+		color: inherit;
+		text-decoration: none;
+	}
+	.ledger-row:hover {
+		border-color: var(--accent);
+		text-decoration: none;
 	}
 </style>

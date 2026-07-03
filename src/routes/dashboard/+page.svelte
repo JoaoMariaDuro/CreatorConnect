@@ -4,6 +4,26 @@
 
 	let { data } = $props();
 	const profile = $derived(data.profile);
+
+	// Read-only rollup of the creator's own current pricing posture across all open listings, per
+	// mechanism — ties together fields that already exist (floor/rate-card cents) but were only ever
+	// shown per-listing, not as a single "here's where my prices stand right now" glance.
+	function priceRange(cents: number[]): string {
+		if (cents.length === 0) return '—';
+		const min = Math.min(...cents);
+		const max = Math.max(...cents);
+		return min === max ? formatMoney(min) : `${formatMoney(min)}–${formatMoney(max)}`;
+	}
+	const rateCard = $derived.by(() => {
+		if (profile?.role !== 'creator') return null;
+		const open = (data.listings ?? []).filter((l: any) => l.status === 'open');
+		const adPrices = open.filter((l: any) => l.pricing_mechanism === 'A' || l.pricing_mechanism === 'D')
+			.map((l: any) => l.floor_price_cents).filter((c: any) => c != null);
+		const cPrices = open.filter((l: any) => l.pricing_mechanism === 'C' && l.rate_card_low_cents != null)
+			.flatMap((l: any) => [l.rate_card_low_cents, l.rate_card_high_cents]).filter((c: any) => c != null);
+		if (adPrices.length === 0 && cPrices.length === 0) return null;
+		return { adRange: priceRange(adPrices), cRange: priceRange(cPrices) };
+	});
 </script>
 
 <div class="container">
@@ -13,6 +33,26 @@
 		<div class="empty">Setting up your profile…</div>
 	{:else if profile.role === 'creator'}
 		<p class="muted">Signed in as {profile.display_name}</p>
+
+		{#if rateCard}
+			<div class="card" style="margin-bottom:16px;">
+				<div class="muted" style="font-size:13px;">Your current pricing (open listings)</div>
+				<div class="row" style="gap:24px; margin-top:8px; flex-wrap:wrap;">
+					<div>
+						<div class="muted" style="font-size:12px;">Fixed price / floor (A · D)</div>
+						<strong>{rateCard.adRange}</strong>
+					</div>
+					<div>
+						<div class="muted" style="font-size:12px;">Rate-card range (C)</div>
+						<strong>{rateCard.cRange}</strong>
+					</div>
+					<div>
+						<div class="muted" style="font-size:12px;">Completed deals</div>
+						<strong>{profile.completed_deals_count ?? 0}</strong>
+					</div>
+				</div>
+			</div>
+		{/if}
 
 		{#if data.pendingListingIds?.length || data.pendingOfferListingIds?.length || data.pendingGrantListingIds?.length}
 			<div class="section-title">Needs your attention</div>

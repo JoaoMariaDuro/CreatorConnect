@@ -5,7 +5,21 @@ import type { LayoutServerLoad } from './$types';
 export const load: LayoutServerLoad = async ({ locals: { safeGetSession, supabase }, cookies }) => {
 	const { session, user } = await safeGetSession();
 
-	let profile: { id: string; role: string; display_name: string; is_platform_admin?: boolean } | null = null;
+	// Matches supabase/schema.sql's `profiles` columns — the query below already does `select('*')`,
+	// this type just needs to keep up so pages (e.g. /settings) can read the full row without a cast.
+	let profile: {
+		id: string;
+		role: string;
+		display_name: string;
+		handle: string | null;
+		avatar_url: string | null;
+		bio: string | null;
+		niche_tags: string[];
+		follower_count: number | null;
+		platform_handles: Record<string, string>;
+		completed_deals_count: number;
+		is_platform_admin?: boolean;
+	} | null = null;
 	let notifications: any[] = [];
 	if (user && supabase) {
 		const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();

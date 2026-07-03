@@ -88,6 +88,47 @@
 			(listing.performance_stats.avg_views_per_post != null || listing.performance_stats.engagement_rate_pct != null)
 	);
 
+	// Listing extras: constraints_text (freeform) + audience_demographics jsonb — both existed in
+	// schema since MVP with no UI. Shape kept minimal and explicit, same "documented minimal choice,
+	// not a rediscovery of a spec" reasoning already used for performance_stats above.
+	let constraintsDraft = $state('');
+	let demoAgeRangeDraft = $state('');
+	let demoGenderSplitDraft = $state('');
+	let demoTopGeographyDraft = $state('');
+	let extrasBusy = $state(false);
+	let extrasErr = $state('');
+
+	$effect(() => {
+		if (listing) {
+			constraintsDraft = listing.constraints_text ?? '';
+			demoAgeRangeDraft = listing.audience_demographics?.age_range ?? '';
+			demoGenderSplitDraft = listing.audience_demographics?.gender_split ?? '';
+			demoTopGeographyDraft = listing.audience_demographics?.top_geography ?? '';
+		}
+	});
+
+	async function saveExtras() {
+		if (!listing || !supabase) return;
+		extrasBusy = true;
+		extrasErr = '';
+		const audience_demographics: Record<string, string> = {};
+		if (demoAgeRangeDraft.trim()) audience_demographics.age_range = demoAgeRangeDraft.trim();
+		if (demoGenderSplitDraft.trim()) audience_demographics.gender_split = demoGenderSplitDraft.trim();
+		if (demoTopGeographyDraft.trim()) audience_demographics.top_geography = demoTopGeographyDraft.trim();
+		const { error } = await supabase
+			.from('creator_listings')
+			.update({ constraints_text: constraintsDraft.trim() || null, audience_demographics })
+			.eq('id', listing.id);
+		extrasBusy = false;
+		if (error) { extrasErr = error.message; return; }
+		await invalidateAll();
+	}
+
+	const hasDemographicsToShow = $derived(
+		!!listing?.audience_demographics &&
+			(listing.audience_demographics.age_range || listing.audience_demographics.gender_split || listing.audience_demographics.top_geography)
+	);
+
 	let showReserveConfirm = $state(false);
 	let reserving = $state(false);
 	let reserveErr = $state('');
@@ -296,6 +337,24 @@
 							<span class="badge badge-stale-hard" style="margin-top:8px;">Stats last updated {formatDate(listing.performance_stats_updated_at)} — likely outdated</span>
 						{/if}
 					{/if}
+
+					{#if hasDemographicsToShow}
+						<hr class="sep" />
+						{#if listing.audience_demographics.age_range}
+							<div class="kv"><span class="muted">Audience age range</span><strong>{listing.audience_demographics.age_range}</strong></div>
+						{/if}
+						{#if listing.audience_demographics.gender_split}
+							<div class="kv"><span class="muted">Gender split</span><strong>{listing.audience_demographics.gender_split}</strong></div>
+						{/if}
+						{#if listing.audience_demographics.top_geography}
+							<div class="kv"><span class="muted">Top geography</span><strong>{listing.audience_demographics.top_geography}</strong></div>
+						{/if}
+					{/if}
+
+					{#if listing.constraints_text}
+						<hr class="sep" />
+						<div class="kv"><span class="muted">Constraints</span><strong>{listing.constraints_text}</strong></div>
+					{/if}
 				</div>
 
 				{#if isOwnerOrManager && (listing.status === 'draft' || listing.status === 'open')}
@@ -316,6 +375,35 @@
 							{statsBusy ? 'Saving…' : 'Save stats'}
 						</button>
 						{#if statsErr}<p class="warn">{statsErr}</p>{/if}
+					</div>
+				{/if}
+
+				{#if isOwnerOrManager && (listing.status === 'draft' || listing.status === 'open')}
+					<div class="card">
+						<h3 style="margin-top:0;">Listing extras</h3>
+						<p class="muted" style="font-size:13px;">
+							Optional context shown to advertisers alongside the listing.
+						</p>
+						<div class="field">
+							<label for="extras-constraints">Constraints</label>
+							<input id="extras-constraints" type="text" bind:value={constraintsDraft} placeholder="e.g. no competitor brands to X" />
+						</div>
+						<div class="field" style="margin-top:10px;">
+							<label for="extras-age">Audience age range</label>
+							<input id="extras-age" type="text" bind:value={demoAgeRangeDraft} placeholder="e.g. 18-34" />
+						</div>
+						<div class="field" style="margin-top:10px;">
+							<label for="extras-gender">Gender split</label>
+							<input id="extras-gender" type="text" bind:value={demoGenderSplitDraft} placeholder="e.g. 60% women / 40% men" />
+						</div>
+						<div class="field" style="margin-top:10px;">
+							<label for="extras-geo">Top geography</label>
+							<input id="extras-geo" type="text" bind:value={demoTopGeographyDraft} placeholder="e.g. United States" />
+						</div>
+						<button class="btn btn-sm" style="margin-top:10px;" onclick={saveExtras} disabled={extrasBusy}>
+							{extrasBusy ? 'Saving…' : 'Save extras'}
+						</button>
+						{#if extrasErr}<p class="warn">{extrasErr}</p>{/if}
 					</div>
 				{/if}
 
