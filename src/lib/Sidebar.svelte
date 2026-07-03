@@ -146,6 +146,8 @@
 		font-size: 15px;
 		color: var(--text);
 		padding: 8px 10px 20px;
+		overflow: hidden;
+		white-space: nowrap;
 	}
 	.logo:hover {
 		text-decoration: none;
@@ -169,6 +171,8 @@
 		background: none;
 		border: none;
 		text-align: left;
+		overflow: hidden;
+		white-space: nowrap;
 	}
 	.nav-item:hover {
 		background: var(--panel-raised);
@@ -217,6 +221,42 @@
 	}
 	.ghost-btn {
 		cursor: pointer;
+	}
+
+	/* Desktop-only: collapse the sidebar to an icon-only rail by default,
+	   expanding to the full-width panel on hover/focus. The expanded state
+	   overlays on top of page content (app.css reserves space for the
+	   collapsed width only), matching the Supabase dashboard nav pattern. */
+	@media (min-width: 861px) {
+		.sidebar {
+			width: var(--sidebar-collapsed-w);
+			overflow-x: hidden;
+			transition: width 150ms ease;
+			z-index: 50;
+			box-shadow: 2px 0 12px rgba(0, 0, 0, 0.25);
+		}
+		.sidebar:hover,
+		.sidebar:focus-within {
+			width: var(--sidebar-w);
+		}
+		/* Collapsed rail: the icon is the only visible content (the label
+		   next to it is clipped by the row's overflow:hidden), so give it a
+		   fixed non-shrinking box and let symmetric padding read as centered
+		   instead of centering the whole (icon + clipped label) flex line —
+		   the latter drifts off-box once the wide label is factored in. */
+		.logo :global(svg),
+		.nav-item :global(svg) {
+			flex-shrink: 0;
+		}
+		.who {
+			overflow: hidden;
+			white-space: nowrap;
+			opacity: 0;
+		}
+		.sidebar:hover .who,
+		.sidebar:focus-within .who {
+			opacity: 1;
+		}
 	}
 
 	/* Match the breakpoint in app.css: below this width, take the
