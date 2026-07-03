@@ -12,7 +12,8 @@
 		LogIn,
 		Sparkles,
 		KeyRound,
-		ShieldAlert
+		ShieldAlert,
+		Settings
 	} from '@lucide/svelte';
 
 	const user = $derived(page.data.user);
@@ -87,6 +88,10 @@
 			<a class="nav-item admin" class:active={isActive('/admin')} href="/admin">
 				<ShieldAlert size={17} />
 				<span>Admin</span>
+			</a>
+			<a class="nav-item" class:active={path === '/settings'} href="/settings">
+				<Settings size={17} />
+				<span>Test Settings</span>
 			</a>
 		{/if}
 	</nav>

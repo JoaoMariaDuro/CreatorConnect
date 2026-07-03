@@ -35,8 +35,11 @@ exists`, `drop policy if exists` before `create policy`) so re-running one after
     **Requires enabling the pg_cron extension first**: Database → Extensions → search "pg_cron" →
     Enable, in the Supabase dashboard, before running this file.
 11. [`rpc-admin.sql`](./rpc-admin.sql) — `resolve_dispute_as_admin`, the founder/admin dispute
-    resolution RPC gated by `schema.sql`'s `is_platform_admin()`. Depends on `deals` (`deals.sql`),
-    `audit_log` (`delegation.sql`), and `is_platform_admin()` (`schema.sql`), so it runs last.
+    resolution RPC, plus `set_own_test_role_as_admin`, which lets an admin flip their own `role`
+    between creator/advertiser/manager to test all three role-differentiated UIs from one account
+    (see `/settings` in the app). Both gated by `schema.sql`'s `is_platform_admin()`. Depends on
+    `deals` (`deals.sql`), `audit_log` (`delegation.sql`), and `is_platform_admin()` (`schema.sql`),
+    so it runs last.
 
 ## Then: get the app talking to it
 

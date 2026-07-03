@@ -45,11 +45,31 @@ create policy "read own profile" on public.profiles
   for select
   using (auth.uid() = id);
 
+-- A user can edit their own row's normal profile fields (display_name, handle, bio, niche_tags,
+-- follower_count, platform_handles, avatar_url, etc.) via a plain client-side `.update()` call, but
+-- can never change `role` or `is_platform_admin` through this path — for anyone, including admins.
+-- Without this, any signed-in user could call
+-- `supabase.from('profiles').update({ is_platform_admin: true }).eq('id', user.id)` directly and
+-- grant themselves founder/admin access, or silently swap `role` and break the role-based
+-- `/create`/`/login` redirects that assume it's stable once set at signup. `role` stays changeable
+-- only via `set_own_test_role_as_admin` (rpc-admin.sql, admin-only); `is_platform_admin` stays
+-- grantable only via a one-time manual SQL statement (see docs/ROLE_ACCESS_AND_UX_SPEC.md) — never
+-- through an in-app path, not even for admins themselves.
+--
+-- The `with check` subquery pattern below reads each column's value as of the start of the
+-- statement (the pre-update row), which is what makes this work: for a plain profile edit, the new
+-- row's `role`/`is_platform_admin` match what's already stored, so the check passes; for an attempted
+-- `.update({ role: ... })` or `.update({ is_platform_admin: ... })`, the new row's value now differs
+-- from the freshly-selected stored value, so the check fails and Postgres rejects the whole update.
 drop policy if exists "update own profile" on public.profiles;
 create policy "update own profile" on public.profiles
   for update
   using (auth.uid() = id)
-  with check (auth.uid() = id);
+  with check (
+    auth.uid() = id
+    and role = (select p.role from public.profiles p where p.id = auth.uid())
+    and is_platform_admin = (select p.is_platform_admin from public.profiles p where p.id = auth.uid())
+  );
 
 drop trigger if exists profiles_touch on public.profiles;
 create trigger profiles_touch
