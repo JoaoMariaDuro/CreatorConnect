@@ -418,6 +418,21 @@ predictably failed with `column "is_platform_admin" of relation "profiles" does 
 re-running `schema.sql` → `deals.sql` → `delegation.sql` → `rpc-admin.sql` in that order, then the
 grant statement succeeded. The founder confirmed admin access is live.
 
+**Third follow-on: test-data seeding** (commit `c2561bb`). Every prior verification note in this log
+says some version of "couldn't test live, no test credentials in this environment" — the founder
+asked for a way to actually populate the app for manual QA. Two artifacts:
+`scripts/seed-test-users.mjs`, a Node script using the Supabase admin API that the founder runs
+locally with his own service-role key (never seen by any agent) to create 6 confirmed test accounts
+and print a magic-link sign-in URL for each — no real inbox, no password anywhere in the flow — and
+`supabase/seed-data.sql`, run after via the SQL Editor, populating a full coverage matrix: every
+mechanism in both fresh and in-progress-negotiation states, every `performance_stats` staleness
+tier, every `deals` status including a disputed deal with a manager-acting-as-creator audit row (to
+exercise the admin surface's "acting as" line), and both manager price-band fallback paths. Verified
+end-to-end against a local scratch Postgres database (no live credentials available), which caught
+one real gap before it shipped: the Mechanism-A offer thread as originally written left the ball in
+the advertiser's court, not the creator's, so no seeded creator actually had anything in their own
+dashboard's Mechanism-A "needs attention" queue — fixed by adding a third counter-offer.
+
 ### What's still genuinely open
 
 - Everything this brief's own "explicitly out of scope" section named, unchanged: Stripe Connect,
