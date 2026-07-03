@@ -1,0 +1,201 @@
+-- CreatorConnect — org creation, invite, and accept lifecycle. Run after orgs.sql.
+-- See supabase/rpc-delegation.sql for the manager-delegation pattern this mirrors for org
+-- membership instead of creator delegation.
+--
+-- Renamed from "company" to "org" terminology (founder's call). `create or replace function` means
+-- this file alone is enough to pick up the rename for the RPCs — but the OLD function names
+-- (create_company etc.) still exist as separate objects in Postgres until explicitly dropped, since
+-- a rename-via-replace isn't a thing for functions the way ALTER TABLE RENAME works for tables. The
+-- drops below remove them so the app can't accidentally call a stale function.
+
+drop function if exists public.create_company(text, text, text, text, text);
+drop function if exists public.invite_company_member_by_email(uuid, text);
+drop function if exists public.accept_company_invite(uuid);
+
+-- Atomically creates an org AND inserts the caller as its first (active) owner, in one transaction.
+-- This is why this is an RPC and not two client-side inserts: orgs.sql's RLS deliberately grants no
+-- insert policy on orgs at all, specifically so an org can never exist with zero owners even
+-- transiently — two separate client calls would leave a window where the org exists with no owner if
+-- the second call failed (network error, client crash) partway through.
+--
+-- Only advertisers and managers may create an org (creators are excluded per the founder's decision)
+-- — checked against the caller's own profiles.role, which is immutable, so this can't be bypassed by
+-- a role-switch after the fact. Also blocks creating a second org while the caller already has an
+-- active membership elsewhere — without this, a user could end up owning two orgs with no UI path to
+-- manage the second, a confusing dead end rather than a real feature.
+create or replace function public.create_org(
+  p_name text,
+  p_handle text,
+  p_org_type text,
+  p_avatar_url text default null,
+  p_bio text default null
+)
+returns public.orgs
+language plpgsql security definer set search_path = public as $$
+declare
+  v_caller_role text;
+  v_already_member boolean;
+  v_org public.orgs;
+begin
+  select role into v_caller_role from public.profiles where id = auth.uid();
+  if v_caller_role is null then
+    raise exception 'no profile found for caller';
+  end if;
+  if v_caller_role not in ('advertiser', 'manager') then
+    raise exception 'only advertisers and managers can create an org';
+  end if;
+  if p_org_type not in ('advertiser', 'manager') then
+    raise exception 'invalid org_type: %', p_org_type;
+  end if;
+  if p_org_type <> v_caller_role then
+    raise exception 'org_type (%) must match your own role (%)', p_org_type, v_caller_role;
+  end if;
+  if p_name is null or trim(p_name) = '' then
+    raise exception 'name is required';
+  end if;
+  if p_handle is null or trim(p_handle) = '' then
+    raise exception 'handle is required';
+  end if;
+
+  select exists (
+    select 1 from public.org_members where user_id = auth.uid() and status = 'active'
+  ) into v_already_member;
+  if v_already_member then
+    raise exception 'you already belong to an org — leave it before creating a new one';
+  end if;
+
+  insert into public.orgs (name, handle, org_type, avatar_url, bio, created_by)
+  values (trim(p_name), lower(trim(p_handle)), p_org_type, p_avatar_url, p_bio, auth.uid())
+  returning * into v_org;
+
+  insert into public.org_members (org_id, user_id, role, status, joined_at)
+  values (v_org.id, auth.uid(), 'owner', 'active', now());
+
+  insert into public.audit_log (actor_id, action, target_table, target_id, after)
+  values (auth.uid(), 'org.create', 'orgs', v_org.id, to_jsonb(v_org));
+
+  return v_org;
+exception
+  when unique_violation then
+    raise exception 'that org handle is already taken';
+end $$;
+
+-- Invite an advertiser or manager to join an existing org by email. Security definer for the same
+-- reason invite_manager_by_email() is: email lives on auth.users, which no client-side policy can
+-- read, and profiles has no email column by design. This performs exactly the insert an active
+-- owner's own "owner inserts members" RLS policy (orgs.sql) would already allow them to do directly,
+-- IF they could resolve the email to a user_id themselves — this is a lookup convenience, not a new
+-- authorization path.
+--
+-- Two checks required by the founder's decisions:
+-- 1. Caller must be an ACTIVE OWNER of p_org_id — there is no RLS fallback once inside a
+--    security-definer function, so this check is the only thing preventing any authenticated user
+--    from inserting an invite into an org they have no relationship to.
+-- 2. The invitee's profiles.role must match the org's org_type — an advertiser org cannot invite a
+--    manager (or a creator), and vice versa, keeping "only advertisers and managers get org
+--    affiliation" true and org_type meaningful.
+create or replace function public.invite_org_member_by_email(p_org_id uuid, p_email text)
+returns public.org_members
+language plpgsql security definer set search_path = public as $$
+declare
+  v_invitee_id uuid;
+  v_invitee_role text;
+  v_org public.orgs;
+  v_member public.org_members;
+begin
+  if not public.is_active_org_owner(p_org_id) then
+    raise exception 'not authorized — only an active owner can invite members';
+  end if;
+
+  select * into v_org from public.orgs where id = p_org_id;
+  if v_org is null then
+    raise exception 'org not found';
+  end if;
+
+  select id into v_invitee_id from auth.users where email = lower(trim(p_email));
+  if v_invitee_id is null then
+    raise exception 'no account found for %', p_email;
+  end if;
+
+  select role into v_invitee_role from public.profiles where id = v_invitee_id;
+  if v_invitee_role is null then
+    raise exception 'no profile found for %', p_email;
+  end if;
+  if v_invitee_role <> v_org.org_type then
+    raise exception '% is registered as % — this org only accepts % members', p_email, v_invitee_role, v_org.org_type;
+  end if;
+
+  if v_invitee_id = auth.uid() then
+    raise exception 'you are already a member of this org';
+  end if;
+
+  insert into public.org_members (org_id, user_id, role, status, invited_at)
+  values (p_org_id, v_invitee_id, 'member', 'pending', now())
+  on conflict (org_id, user_id) do update
+    set status = 'pending', invited_at = now(), revoked_at = null
+  returning * into v_member;
+
+  insert into public.audit_log (actor_id, action, target_table, target_id, after)
+  values (auth.uid(), 'org_member.invite', 'org_members', v_member.id, to_jsonb(v_member));
+
+  insert into public.notifications (user_id, type, payload)
+  values (v_invitee_id, 'org_member.invited',
+    jsonb_build_object('org_id', p_org_id, 'member_id', v_member.id,
+      'message', 'You''ve been invited to join ' || v_org.name || ' on CreatorConnect.'));
+
+  return v_member;
+end $$;
+
+-- Invitee accepts their own pending invite. Only the invited user can accept their own row — same
+-- shape as accept_manager_link(). Chosen as an RPC (not a plain client `.update()`) because it needs
+-- to set joined_at atomically with the status flip and write audit_log + notifications in the same
+-- transaction. The "owner manages member rows" RLS policy (orgs.sql) doesn't permit a non-owner to
+-- update their own row at all, so without this RPC an invitee would have no path to accept — unlike
+-- revoke, this one is genuinely required, not a style choice.
+create or replace function public.accept_org_invite(p_member_id uuid)
+returns public.org_members
+language plpgsql security definer set search_path = public as $$
+declare
+  v_member public.org_members;
+  v_org public.orgs;
+begin
+  select * into v_member from public.org_members where id = p_member_id for update;
+  if v_member is null then
+    raise exception 'invite not found';
+  end if;
+  if v_member.user_id <> auth.uid() then
+    raise exception 'not your invite';
+  end if;
+  if v_member.status <> 'pending' then
+    raise exception 'invite is not pending';
+  end if;
+
+  update public.org_members
+  set status = 'active', joined_at = now()
+  where id = p_member_id
+  returning * into v_member;
+
+  select * into v_org from public.orgs where id = v_member.org_id;
+
+  insert into public.audit_log (actor_id, action, target_table, target_id, after)
+  values (auth.uid(), 'org_member.accept', 'org_members', p_member_id, to_jsonb(v_member));
+
+  -- Notify every active owner (there may be more than one) — not just created_by, since ownership
+  -- can change over time and "who currently manages this roster" is whoever holds an active owner
+  -- row right now.
+  insert into public.notifications (user_id, type, payload)
+  select om.user_id, 'org_member.accepted',
+    jsonb_build_object('org_id', v_member.org_id, 'member_id', v_member.id,
+      'message', 'A new member joined ' || v_org.name || '.')
+  from public.org_members om
+  where om.org_id = v_member.org_id and om.role = 'owner' and om.status = 'active';
+
+  return v_member;
+end $$;
+
+-- Revoke deliberately has NO RPC — a plain
+-- supabase.from('org_members').update({ status: 'revoked', revoked_at: ... }).eq('id', memberId)
+-- is already correctly scoped by orgs.sql's "owner manages member rows" RLS policy, exactly how
+-- manager_creator_links revocation works today (settings/managers/+page.svelte's revoke()). The
+-- enforce_org_has_owner trigger protects the one real invariant regardless of which path the update
+-- comes from, so an RPC here would be indirection with no behavioral benefit.

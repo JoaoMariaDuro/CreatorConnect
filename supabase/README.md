@@ -59,15 +59,23 @@ that order — the helper function is defined in the first file and used by the 
     "Suggest an idea" flow. Plain client-side insert with RLS, not a security-definer RPC — this is
     low-stakes user-submitted content, not an audit trail. Only depends on `schema.sql` (`profiles`,
     `is_platform_admin()`), so it can run any time after that.
-13. [`companies.sql`](./companies.sql) — `companies` + `company_members` (advertiser/manager
-    multi-person orgs — owner/member roles, pending/active/revoked invite lifecycle), the
-    `public_companies` / `public_company_roster` views their public pages read through, and a
-    trigger blocking the last active owner of a company from being removed. Only depends on
+13. [`orgs.sql`](./orgs.sql) — `orgs` + `org_members` (advertiser/manager multi-person orgs — owner/
+    member roles, pending/active/revoked invite lifecycle), the `public_orgs` / `public_org_roster`
+    views their public pages read through, and a trigger blocking the last active owner of an org
+    from being removed. **Renamed from "company" to "org" terminology, founder's call** — this file
+    handles the rename itself (see its own header comment): it drops any old `companies`/
+    `company_members` objects outright (CASCADE, safe — this feature has zero real data) and creates
+    everything fresh under the new names. An earlier version tried an in-place `ALTER ... RENAME`
+    instead; that had a real cross-file dependency-ordering bug (see the file's own comment), so this
+    is the corrected approach. Run this file (not the old, now-deleted `companies.sql`) — safe to
+    re-run from any partial state a failed attempt might have left behind. Only depends on
     `schema.sql` (`profiles`, `public_profiles`) and `delegation.sql` (`audit_log`, `notifications`)
     — listed here as step 13 to avoid renumbering the rest of this list, but it can run any time
     after step 5.
-14. [`rpc-companies.sql`](./rpc-companies.sql) — `create_company`, `invite_company_member_by_email`,
-    `accept_company_invite`. Must run after `companies.sql` (step 13).
+14. [`rpc-orgs.sql`](./rpc-orgs.sql) — `create_org`, `invite_org_member_by_email`, `accept_org_invite`
+    (renamed from `create_company`/`invite_company_member_by_email`/`accept_company_invite` — this
+    file drops the old function names too, so nothing stale is left callable). Must run after
+    `orgs.sql` (step 13).
 15. [`fix-profile-handle-unique.sql`](./fix-profile-handle-unique.sql) — a unique index on
     `profiles.handle`, closing a gap that existed since MVP (two users could pick the same handle
     and break each other's `/c/[handle]`/`/u/[handle]` page). Only depends on `schema.sql`
@@ -76,13 +84,17 @@ that order — the helper function is defined in the first file and used by the 
     designed but never built until now). Plain RLS, no RPC — self-scoped both directions, an
     advertiser's shortlist is private. Only depends on `schema.sql` (`profiles`) and `listings.sql`
     (`creator_listings`), so it can run any time after step 2.
-17. [`company-showcase.sql`](./company-showcase.sql) — `company_showcased_creators`: lets a
-    manager/agency company publicly display which creators it represents on `/company/[handle]`,
-    with dual consent (the agency proposes, the creator must separately accept — neither side can
-    grant consent alone, enforced by RLS, not just app logic). Depends on `companies.sql` (step 13)
-    and `delegation.sql` (`manager_creator_links`, step 5).
-18. [`rpc-company-showcase.sql`](./rpc-company-showcase.sql) — `propose_showcase_creator`,
-    `respond_showcase_creator`. Must run after `company-showcase.sql` (step 17).
+17. [`org-showcase.sql`](./org-showcase.sql) — `org_showcased_creators`: lets a manager/agency org
+    publicly display which creators it represents on `/org/[handle]`, with dual consent (the agency
+    proposes, the creator must separately accept — neither side can grant consent alone, enforced by
+    RLS, not just app logic). `orgs.sql` (step 13) already drops the old `company_showcased_creators`
+    table outright before this one runs, so this file just creates fresh. Run this file, not the old,
+    now-deleted `company-showcase.sql`. Depends on `orgs.sql` (step 13) and `delegation.sql`
+    (`manager_creator_links`, step 5).
+18. [`rpc-org-showcase.sql`](./rpc-org-showcase.sql) — `propose_showcase_creator`,
+    `respond_showcase_creator` (same names as before — only their parameters/bodies changed to
+    reference `orgs`/`org_members` instead of `companies`/`company_members`). Must run after
+    `org-showcase.sql` (step 17).
 19. [`manager-notes.sql`](./manager-notes.sql) — `manager_creator_notes`: a manager's private working
     notes per represented creator (preferences, history, reminders) — fully invisible to the creator,
     on purpose (a new table, not a column on `manager_creator_links`, specifically so the creator's
@@ -93,6 +105,14 @@ that order — the helper function is defined in the first file and used by the 
     (`is_authorized_for_creator`, `audit_log`, `notifications`).
 21. [`rpc-deal-signatures.sql`](./rpc-deal-signatures.sql) — `sign_deal_as`. Must run after
     `deal-signatures.sql` (step 20).
+22. [`fix-org-rls-recursion.sql`](./fix-org-rls-recursion.sql) — fixes a real bug confirmed live:
+    `is_active_org_owner`/`is_active_org_member` (`orgs.sql`) query `org_members`, but are also used
+    inside `org_members`' own RLS policies, causing infinite recursion ("stack depth limit exceeded")
+    once `org_members` has a real row. Fix is `security definer` on both functions — a plain
+    `create or replace function` on the same name/signature, touches no table or existing data.
+    **If you already ran `orgs.sql`, run this file too** — it's not folded back into `orgs.sql`
+    itself so that file's own `drop table ... cascade` at the top doesn't force you to destroy and
+    recreate any org you've already made just to pick up this fix.
 
 **Note on `schema.sql`'s `public_profiles` view**: this session widened it to also expose `bio`
 (needed by `/u/[handle]`, the new advertiser/manager individual profile page — see the view's own

@@ -10,28 +10,28 @@
 	const pendingMemberships = $derived(data.memberships.filter((m: any) => m.status === 'pending'));
 	const isOwner = $derived(activeMembership?.role === 'owner');
 
-	// Create company
-	let companyName = $state('');
-	let companyHandle = $state('');
-	let companyBio = $state('');
+	// Create org
+	let orgName = $state('');
+	let orgHandle = $state('');
+	let orgBio = $state('');
 	let creating = $state(false);
 	let createErr = $state('');
 
-	async function createCompany() {
-		if (!supabase || !profile || !companyName.trim() || !companyHandle.trim()) return;
+	async function createOrg() {
+		if (!supabase || !profile || !orgName.trim() || !orgHandle.trim()) return;
 		creating = true;
 		createErr = '';
-		const { error } = await supabase.rpc('create_company', {
-			p_name: companyName.trim(),
-			p_handle: companyHandle.trim(),
-			p_company_type: profile.role,
-			p_bio: companyBio.trim() || null
+		const { error } = await supabase.rpc('create_org', {
+			p_name: orgName.trim(),
+			p_handle: orgHandle.trim(),
+			p_org_type: profile.role,
+			p_bio: orgBio.trim() || null
 		});
 		creating = false;
 		if (error) { createErr = error.message; return; }
-		companyName = '';
-		companyHandle = '';
-		companyBio = '';
+		orgName = '';
+		orgHandle = '';
+		orgBio = '';
 		await invalidateAll();
 	}
 
@@ -41,7 +41,7 @@
 	async function accept(memberId: string) {
 		if (!supabase) return;
 		accepting = memberId;
-		await supabase.rpc('accept_company_invite', { p_member_id: memberId });
+		await supabase.rpc('accept_org_invite', { p_member_id: memberId });
 		accepting = null;
 		await invalidateAll();
 	}
@@ -55,8 +55,8 @@
 		if (!supabase || !activeMembership || !inviteEmail.trim()) return;
 		inviting = true;
 		inviteErr = '';
-		const { error } = await supabase.rpc('invite_company_member_by_email', {
-			p_company_id: activeMembership.company.id,
+		const { error } = await supabase.rpc('invite_org_member_by_email', {
+			p_org_id: activeMembership.org.id,
 			p_email: inviteEmail.trim()
 		});
 		inviting = false;
@@ -72,7 +72,7 @@
 		if (!supabase) return;
 		revokeErr = '';
 		const { error } = await supabase
-			.from('company_members')
+			.from('org_members')
 			.update({ status: 'revoked', revoked_at: new Date().toISOString() })
 			.eq('id', memberId);
 		if (error) { revokeErr = error.message; return; }
@@ -80,7 +80,7 @@
 	}
 
 	// Showcase: creators the CALLER personally represents (own manager_creator_links), not yet
-	// showcased (or previously declined) for this company — propose_showcase_creator() re-checks the
+	// showcased (or previously declined) for this org — propose_showcase_creator() re-checks the
 	// relationship server-side regardless of what this filter shows.
 	const showcasableCreators = $derived(
 		(data.myRepresentedCreators ?? []).filter(
@@ -95,7 +95,7 @@
 		proposingId = creatorId;
 		showcaseErr = '';
 		const { error } = await supabase.rpc('propose_showcase_creator', {
-			p_company_id: activeMembership.company.id,
+			p_org_id: activeMembership.org.id,
 			p_creator_id: creatorId
 		});
 		proposingId = null;
@@ -107,7 +107,7 @@
 		if (!supabase) return;
 		showcaseErr = '';
 		const { error } = await supabase
-			.from('company_showcased_creators')
+			.from('org_showcased_creators')
 			.update({ status: 'declined', responded_at: new Date().toISOString() })
 			.eq('id', showcaseId);
 		if (error) { showcaseErr = error.message; return; }
@@ -116,12 +116,12 @@
 </script>
 
 <div class="container narrow">
-	<h1>Company</h1>
+	<h1>Org</h1>
 
 	{#if !profile}
 		<div class="empty">Loading…</div>
 	{:else if profile.role === 'creator'}
-		<p class="muted">Company affiliation is only available for advertiser and manager accounts.</p>
+		<p class="muted">Org affiliation is only available for advertiser and manager accounts.</p>
 	{:else}
 		{#if pendingMemberships.length > 0}
 			<div class="section-title">Invitations</div>
@@ -129,7 +129,7 @@
 				{#each pendingMemberships as m (m.id)}
 					<div class="card">
 						<div class="row" style="justify-content: space-between;">
-							<strong>{m.company?.name}</strong>
+							<strong>{m.org?.name}</strong>
 							<button class="btn btn-primary btn-sm" onclick={() => accept(m.id)} disabled={accepting === m.id}>
 								{accepting === m.id ? 'Accepting…' : 'Accept'}
 							</button>
@@ -140,17 +140,17 @@
 		{/if}
 
 		{#if activeMembership}
-			<div class="section-title">Your company</div>
+			<div class="section-title">Your org</div>
 			<div class="card">
 				<div class="row" style="justify-content: space-between;">
-					<strong>{activeMembership.company.name}</strong>
+					<strong>{activeMembership.org.name}</strong>
 					<span class="muted" style="font-size:13px;">{isOwner ? 'Owner' : 'Member'}</span>
 				</div>
 				<div class="muted" style="font-size:13px; margin-top:4px;">
-					<a href={`/company/${activeMembership.company.handle}`}>{activeMembership.company.handle}</a>
+					<a href={`/org/${activeMembership.org.handle}`}>{activeMembership.org.handle}</a>
 				</div>
-				{#if activeMembership.company.bio}
-					<p class="muted" style="font-size:13px; margin-top:8px;">{activeMembership.company.bio}</p>
+				{#if activeMembership.org.bio}
+					<p class="muted" style="font-size:13px; margin-top:8px;">{activeMembership.org.bio}</p>
 				{/if}
 			</div>
 
@@ -159,7 +159,7 @@
 					<h3 style="margin-top:0;">Invite a member</h3>
 					<div class="field">
 						<label for="invite-email">Their email</label>
-						<input id="invite-email" type="email" bind:value={inviteEmail} placeholder="coworker@company.com" />
+						<input id="invite-email" type="email" bind:value={inviteEmail} placeholder="coworker@org.com" />
 						<span class="hint">They must already have a CreatorConnect account registered as {profile.role === 'advertiser' ? 'an advertiser' : 'a manager'}.</span>
 					</div>
 					{#if inviteErr}<p class="warn">{inviteErr}</p>{/if}
@@ -189,10 +189,10 @@
 				{/each}
 			</div>
 
-			{#if activeMembership.company.company_type === 'manager'}
+			{#if activeMembership.org.org_type === 'manager'}
 				<div class="section-title">Represented creators (public showcase)</div>
 				<p class="muted" style="font-size:13px;">
-					Propose showcasing a creator you represent on your public company page. They have to accept before anyone sees it.
+					Propose showcasing a creator you represent on your public org page. They have to accept before anyone sees it.
 				</p>
 				{#if showcaseErr}<p class="warn">{showcaseErr}</p>{/if}
 				{#if data.showcased?.length}
@@ -228,26 +228,26 @@
 				{/if}
 			{/if}
 		{:else if pendingMemberships.length === 0}
-			<div class="section-title">Create a company</div>
+			<div class="section-title">Create an org</div>
 			<div class="card">
 				<p class="muted" style="font-size:13px;">
-					Set up a shared account for your {profile.role === 'advertiser' ? 'brand' : 'agency'} — invite coworkers, and get a public company page.
+					Set up a shared account for your {profile.role === 'advertiser' ? 'brand' : 'agency'} — invite coworkers, and get a public org page.
 				</p>
 				<div class="field">
-					<label for="company-name">Company name</label>
-					<input id="company-name" type="text" bind:value={companyName} placeholder="Acme Inc." />
+					<label for="org-name">Org name</label>
+					<input id="org-name" type="text" bind:value={orgName} placeholder="Acme Inc." />
 				</div>
 				<div class="field" style="margin-top:10px;">
-					<label for="company-handle">Handle</label>
-					<input id="company-handle" type="text" bind:value={companyHandle} placeholder="@acme" />
+					<label for="org-handle">Handle</label>
+					<input id="org-handle" type="text" bind:value={orgHandle} placeholder="@acme" />
 				</div>
 				<div class="field" style="margin-top:10px;">
-					<label for="company-bio">Bio</label>
-					<textarea id="company-bio" bind:value={companyBio} placeholder="A short line about your company…"></textarea>
+					<label for="org-bio">Bio</label>
+					<textarea id="org-bio" bind:value={orgBio} placeholder="A short line about your org…"></textarea>
 				</div>
 				{#if createErr}<p class="warn">{createErr}</p>{/if}
-				<button class="btn btn-primary" style="margin-top:10px;" onclick={createCompany} disabled={!companyName.trim() || !companyHandle.trim() || creating}>
-					{creating ? 'Creating…' : 'Create company'}
+				<button class="btn btn-primary" style="margin-top:10px;" onclick={createOrg} disabled={!orgName.trim() || !orgHandle.trim() || creating}>
+					{creating ? 'Creating…' : 'Create org'}
 				</button>
 			</div>
 		{/if}

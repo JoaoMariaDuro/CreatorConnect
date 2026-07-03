@@ -1,33 +1,33 @@
 <script lang="ts">
 	let { data } = $props();
-	const company = $derived(data.company);
+	const org = $derived(data.org);
 	const members = $derived(data.members);
 	const representedCreators = $derived(data.representedCreators);
 </script>
 
 <svelte:head>
-	<title>{company.name} · CreatorConnect</title>
+	<title>{org.name} · CreatorConnect</title>
 </svelte:head>
 
 <div class="container media-kit">
 	<div class="card profile-card">
 		<div class="row" style="align-items:center; gap:16px;">
-			<span class="avatar-lg">{company.name?.[0]?.toUpperCase() ?? '?'}</span>
+			<span class="avatar-lg">{org.name?.[0]?.toUpperCase() ?? '?'}</span>
 			<div>
-				<h1 style="margin:0;">{company.name}</h1>
-				{#if company.handle}<div class="muted">{company.handle}</div>{/if}
+				<h1 style="margin:0;">{org.name}</h1>
+				{#if org.handle}<div class="muted">{org.handle}</div>{/if}
 			</div>
 		</div>
 
 		<div class="row" style="gap:8px; flex-wrap:wrap; margin-top:16px;">
-			<span class="badge badge-neutral">{company.company_type === 'advertiser' ? 'Advertiser' : 'Manager / Agency'}</span>
-			{#each company.niche_tags ?? [] as tag (tag)}
+			<span class="badge badge-neutral">{org.org_type === 'advertiser' ? 'Advertiser' : 'Manager / Agency'}</span>
+			{#each org.niche_tags ?? [] as tag (tag)}
 				<span class="badge badge-neutral">{tag}</span>
 			{/each}
 		</div>
 
-		{#if company.bio}
-			<p class="muted" style="margin-top:14px;">{company.bio}</p>
+		{#if org.bio}
+			<p class="muted" style="margin-top:14px;">{org.bio}</p>
 		{/if}
 	</div>
 
@@ -55,7 +55,7 @@
 		</div>
 	{/if}
 
-	{#if company.company_type === 'manager' && representedCreators.length > 0}
+	{#if org.org_type === 'manager' && representedCreators.length > 0}
 		<div class="section-title">Represented creators ({representedCreators.length})</div>
 		<div class="grid">
 			{#each representedCreators as c (c.id)}

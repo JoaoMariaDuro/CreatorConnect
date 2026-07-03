@@ -4,8 +4,8 @@
 -- commitment... matches the research-backed prediction that advertisers browse ahead of committing."
 -- This was designed but never built — confirmed absent via grep before writing this file. No
 -- security-definer RPC needed: shortlisting is a no-commitment bookmark, not a state transition, so
--- a plain RLS-gated insert/delete is correct (same reasoning already used for company_members
--- revocation and feedback inserts elsewhere in this codebase).
+-- a plain RLS-gated insert/delete is correct (same reasoning already used for org_members revocation
+-- and feedback inserts elsewhere in this codebase).
 
 create table if not exists public.shortlists (
   id            uuid        primary key default gen_random_uuid(),

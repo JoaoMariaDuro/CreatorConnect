@@ -58,9 +58,9 @@
 		savingNoteFor = null;
 	}
 
-	// Showcase requests: a manager/agency company proposing to publicly feature this creator.
-	// Dual-consent (company-showcase.sql) — nothing shows up on the company's public page until the
-	// creator responds here.
+	// Showcase requests: a manager/agency org proposing to publicly feature this creator.
+	// Dual-consent (org-showcase.sql) — nothing shows up on the org's public page until the creator
+	// responds here.
 	let respondingId = $state<string | null>(null);
 
 	async function respondShowcase(showcaseId: string, showcaseAccept: boolean) {
@@ -73,11 +73,11 @@
 
 	// Withdrawing consent AFTER already accepting isn't a "response" (respond_showcase_creator only
 	// accepts a still-pending row) — it's a plain RLS-gated update, same "creator manages own showcase
-	// consent" policy that lets them do this at any time (company-showcase.sql).
+	// consent" policy that lets them do this at any time (org-showcase.sql).
 	async function withdrawShowcase(showcaseId: string) {
 		if (!supabase) return;
 		respondingId = showcaseId;
-		await supabase.from('company_showcased_creators').update({ status: 'declined', responded_at: new Date().toISOString() }).eq('id', showcaseId);
+		await supabase.from('org_showcased_creators').update({ status: 'declined', responded_at: new Date().toISOString() }).eq('id', showcaseId);
 		respondingId = null;
 		await invalidateAll();
 	}
@@ -128,14 +128,14 @@
 		{#if data.showcaseRequests?.length}
 			<div class="section-title">Showcase requests</div>
 			<p class="muted" style="font-size:13px;">
-				An agency wants to feature you on their public company page. Nothing is shown publicly unless you accept.
+				An agency wants to feature you on their public org page. Nothing is shown publicly unless you accept.
 			</p>
 			<div class="stack">
 				{#each data.showcaseRequests as s (s.id)}
 					<div class="card">
 						<div class="row" style="justify-content: space-between;">
 							<div>
-								<strong>{s.company?.name}</strong>
+								<strong>{s.org?.name}</strong>
 								<span class="badge" style="margin-left:8px; background:var(--panel-raised); color:var(--text-muted);">{s.status}</span>
 							</div>
 							{#if s.status === 'pending'}

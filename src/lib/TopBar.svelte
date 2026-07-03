@@ -28,7 +28,7 @@
 		'audit-log': 'Audit Log',
 		settings: 'Settings',
 		managers: 'Managers',
-		company: 'Company',
+		org: 'Org',
 		roadmap: 'Roadmap',
 		login: 'Sign in',
 		c: 'Creator Profile',
@@ -44,7 +44,7 @@
 		listings: 'Detail',
 		c: null,
 		u: null,
-		company: null
+		org: null
 	};
 
 	const breadcrumb = $derived.by(() => {
@@ -78,11 +78,11 @@
 	function notificationHref(n: any): string {
 		if (n.payload?.deal_id) return `/deal/${n.payload.deal_id}`;
 		if (n.payload?.listing_id) return `/listings/${n.payload.listing_id}`;
-		// A showcase proposal notifies the CREATOR, who has no /settings/company page (company
-		// affiliation is advertiser/manager-only) — their response lives on /settings/managers
-		// instead. Every other company_id-carrying type is company-member-facing.
-		if (n.type === 'company_showcase.proposed') return '/settings/managers';
-		if (n.payload?.company_id) return '/settings/company';
+		// A showcase proposal notifies the CREATOR, who has no /settings/org page (org affiliation is
+		// advertiser/manager-only) — their response lives on /settings/managers instead. Every other
+		// org_id-carrying type is org-member-facing.
+		if (n.type === 'org_showcase.proposed') return '/settings/managers';
+		if (n.payload?.org_id) return '/settings/org';
 		return '#';
 	}
 

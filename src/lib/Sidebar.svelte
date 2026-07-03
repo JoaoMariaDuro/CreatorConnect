@@ -75,9 +75,9 @@
 				</a>
 			{/if}
 			{#if profile?.role === 'advertiser' || profile?.role === 'manager'}
-				<a class="nav-item" class:active={isActive('/settings/company')} href="/settings/company">
+				<a class="nav-item" class:active={isActive('/settings/org')} href="/settings/org">
 					<Building2 size={17} />
-					<span>Company</span>
+					<span>Org</span>
 				</a>
 			{/if}
 			<a class="nav-item" class:active={path === '/settings'} href="/settings">

@@ -1,7 +1,7 @@
 <script lang="ts">
 	let { data } = $props();
 	const profile = $derived(data.profile);
-	const company = $derived(data.company);
+	const org = $derived(data.org);
 </script>
 
 <svelte:head>
@@ -35,11 +35,11 @@
 		{/if}
 	</div>
 
-	{#if company}
-		<a class="card listing-card" href={`/company/${company.handle}`}>
+	{#if org}
+		<a class="card listing-card" href={`/org/${org.handle}`}>
 			<div class="muted" style="font-size:13px;">Part of</div>
-			<strong>{company.name}</strong>
-			<div class="muted" style="font-size:13px; margin-top:4px;">{company.memberRole === 'owner' ? 'Owner' : 'Member'}</div>
+			<strong>{org.name}</strong>
+			<div class="muted" style="font-size:13px; margin-top:4px;">{org.memberRole === 'owner' ? 'Owner' : 'Member'}</div>
 		</a>
 	{/if}
 </div>
