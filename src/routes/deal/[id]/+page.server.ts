@@ -21,6 +21,7 @@ export const load: PageServerLoad = async ({ params, locals: { safeGetSession, s
 	// behalf, not just the creator themselves. flag_dispute_as (rpc-delivery.sql) already enforces this
 	// independently server-side — this is a UI-gating convenience, not the actual security boundary.
 	let isDelegatedManager = false;
+	let signatures: any[] = [];
 	if (deal) {
 		const { user } = await safeGetSession();
 		if (user && user.id !== deal.creator_id) {
@@ -33,7 +34,13 @@ export const load: PageServerLoad = async ({ params, locals: { safeGetSession, s
 				.maybeSingle();
 			isDelegatedManager = !!link;
 		}
+
+		const { data: sigData } = await supabase
+			.from('deal_signatures')
+			.select('id, signer_role, typed_name, signed_at')
+			.eq('deal_id', deal.id);
+		signatures = sigData ?? [];
 	}
 
-	return { deal, isDelegatedManager };
+	return { deal, isDelegatedManager, signatures };
 };

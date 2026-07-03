@@ -83,6 +83,16 @@ that order — the helper function is defined in the first file and used by the 
     and `delegation.sql` (`manager_creator_links`, step 5).
 18. [`rpc-company-showcase.sql`](./rpc-company-showcase.sql) — `propose_showcase_creator`,
     `respond_showcase_creator`. Must run after `company-showcase.sql` (step 17).
+19. [`manager-notes.sql`](./manager-notes.sql) — `manager_creator_notes`: a manager's private working
+    notes per represented creator (preferences, history, reminders) — fully invisible to the creator,
+    on purpose (a new table, not a column on `manager_creator_links`, specifically so the creator's
+    existing full-access RLS on that table can't leak it). Depends on `schema.sql` (`profiles`,
+    `touch_updated_at()`) and `delegation.sql` (`manager_creator_links`, step 5).
+20. [`deal-signatures.sql`](./deal-signatures.sql) — `deal_signatures`: typed-name e-signature capture
+    per deal/party, immutable once signed. Depends on `deals.sql` and `delegation.sql`
+    (`is_authorized_for_creator`, `audit_log`, `notifications`).
+21. [`rpc-deal-signatures.sql`](./rpc-deal-signatures.sql) — `sign_deal_as`. Must run after
+    `deal-signatures.sql` (step 20).
 
 **Note on `schema.sql`'s `public_profiles` view**: this session widened it to also expose `bio`
 (needed by `/u/[handle]`, the new advertiser/manager individual profile page — see the view's own

@@ -23,6 +23,32 @@
 	const isParty = $derived(
 		!!user && !!deal && (user.id === deal.advertiser_id || user.id === deal.creator_id || data.isDelegatedManager)
 	);
+	const isCreatorSide = $derived(!!user && !!deal && (user.id === deal.creator_id || data.isDelegatedManager));
+
+	// E-signature (deal-signatures.sql): typed name + explicit consent, immutable once signed.
+	const creatorSignature = $derived(data.signatures?.find((s: any) => s.signer_role === 'creator'));
+	const advertiserSignature = $derived(data.signatures?.find((s: any) => s.signer_role === 'advertiser'));
+	const myRole = $derived(isAdvertiser ? 'advertiser' : isCreatorSide ? 'creator' : null);
+	const mySignature = $derived(myRole === 'advertiser' ? advertiserSignature : myRole === 'creator' ? creatorSignature : null);
+
+	let signTypedName = $state('');
+	let signAgreed = $state(false);
+	let signing = $state(false);
+	let signErr = $state('');
+
+	async function signContract() {
+		if (!supabase || !deal || !myRole || !signTypedName.trim() || !signAgreed) return;
+		signing = true;
+		signErr = '';
+		const { error } = await supabase.rpc('sign_deal_as', {
+			p_deal_id: deal.id,
+			p_signer_role: myRole,
+			p_typed_name: signTypedName.trim()
+		});
+		signing = false;
+		if (error) { signErr = error.message; return; }
+		await invalidateAll();
+	}
 
 	let busy = $state(false);
 	let err = $state('');
@@ -119,6 +145,36 @@
 			{/if}
 			{#if deal.auto_release_at}
 				<div class="kv"><span class="muted">Auto-release scheduled</span><strong>{formatDateTime(deal.auto_release_at)}</strong></div>
+			{/if}
+
+			<div class="section-title">Signatures</div>
+			<div class="kv">
+				<span class="muted">Creator</span>
+				<strong>{creatorSignature ? `${creatorSignature.typed_name} · ${formatDate(creatorSignature.signed_at)}` : 'Not yet signed'}</strong>
+			</div>
+			<div class="kv">
+				<span class="muted">Advertiser</span>
+				<strong>{advertiserSignature ? `${advertiserSignature.typed_name} · ${formatDate(advertiserSignature.signed_at)}` : 'Not yet signed'}</strong>
+			</div>
+
+			{#if myRole && !mySignature}
+				<div class="confirm-box no-print">
+					<p style="margin-top:0; font-size:13px;">
+						Type your full legal name to sign this contract as the {myRole}. This is a real signature — it can't be undone or edited once submitted.
+					</p>
+					<div class="field">
+						<label for="sign-name">Full legal name</label>
+						<input id="sign-name" type="text" bind:value={signTypedName} placeholder="Jane Doe" />
+					</div>
+					<label class="row" style="gap:8px; font-size:13px; margin-top:8px; align-items:flex-start;">
+						<input type="checkbox" bind:checked={signAgreed} style="margin-top:3px;" />
+						I agree that typing my name above constitutes my legal signature on this contract.
+					</label>
+					{#if signErr}<p class="warn">{signErr}</p>{/if}
+					<button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick={signContract} disabled={signing || !signTypedName.trim() || !signAgreed}>
+						{signing ? 'Signing…' : 'Sign contract'}
+					</button>
+				</div>
 			{/if}
 
 			<div class="no-print">

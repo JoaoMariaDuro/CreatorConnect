@@ -68,5 +68,14 @@ export const load: PageServerLoad = async ({ locals: { safeGetSession, supabase 
 		.select('id, listing_id, auto_accept_floor_cents, listing:creator_listings (platform, content_type, creator:public_profiles!creator_listings_creator_id_fkey (display_name))')
 		.eq('manager_id', user.id);
 
-	return { profile, links, commissionLedger, bands: (bands ?? []) as any[] };
+	// Private working notes per represented creator (manager-notes.sql) — self-read on the base
+	// table (RLS's manager_id = auth.uid() clause covers it, the creator has no access to this table
+	// at all). Keyed by creator_id client-side so each roster card can show its own note.
+	const { data: notesData } = await supabase
+		.from('manager_creator_notes')
+		.select('id, creator_id, notes, updated_at')
+		.eq('manager_id', user.id);
+	const notesByCreatorId = new Map((notesData ?? []).map((n: any) => [n.creator_id, n]));
+
+	return { profile, links, commissionLedger, bands: (bands ?? []) as any[], notesByCreatorId: Object.fromEntries(notesByCreatorId) };
 };

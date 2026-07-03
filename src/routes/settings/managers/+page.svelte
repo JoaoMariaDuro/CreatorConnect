@@ -38,6 +38,26 @@
 		await invalidateAll();
 	}
 
+	// Private notes per creator (manager-notes.sql) — fully invisible to the creator, RLS-enforced,
+	// not just hidden in this UI. Drafts keyed by creator_id, re-synced from loaded data whenever it
+	// changes (same $effect-sync pattern used for draft state elsewhere, e.g. settings/+page.svelte),
+	// saved individually so one creator's note doesn't block another's while saving.
+	let noteDrafts = $state<Record<string, string>>({});
+	$effect(() => {
+		const byId = data.notesByCreatorId ?? {};
+		noteDrafts = Object.fromEntries(Object.entries(byId).map(([k, v]: [string, any]) => [k, v.notes]));
+	});
+	let savingNoteFor = $state<string | null>(null);
+
+	async function saveNote(creatorId: string) {
+		if (!supabase) return;
+		savingNoteFor = creatorId;
+		await supabase
+			.from('manager_creator_notes')
+			.upsert({ manager_id: page.data.user.id, creator_id: creatorId, notes: noteDrafts[creatorId] ?? '' }, { onConflict: 'manager_id,creator_id' });
+		savingNoteFor = null;
+	}
+
 	// Showcase requests: a manager/agency company proposing to publicly feature this creator.
 	// Dual-consent (company-showcase.sql) — nothing shows up on the company's public page until the
 	// creator responds here.
@@ -180,6 +200,17 @@
 								{/each}
 							</div>
 						{/if}
+						<details style="margin-top:10px;">
+							<summary class="muted" style="font-size:13px; cursor:pointer;">Private notes</summary>
+							<textarea
+								style="margin-top:8px;"
+								bind:value={noteDrafts[l.creator.id]}
+								placeholder="Preferences, history, reminders — visible only to you."
+							></textarea>
+							<button class="btn btn-sm" style="margin-top:6px;" onclick={() => saveNote(l.creator.id)} disabled={savingNoteFor === l.creator.id}>
+								{savingNoteFor === l.creator.id ? 'Saving…' : 'Save note'}
+							</button>
+						</details>
 					</div>
 				{/each}
 			</div>
