@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto, invalidateAll } from '$app/navigation';
+	import { Bookmark } from '@lucide/svelte';
 	import { formatMoney, formatDateTime, formatDate, mechanismShortExplainer } from '$lib/format';
 	import Badges from '$lib/Badges.svelte';
 
@@ -20,6 +21,26 @@
 	);
 	const isAdvertiser = $derived(profile?.role === 'advertiser');
 	const isOwner = $derived(!!user && !!listing && user.id === listing.creator_id);
+
+	let shortlisted = $state(false);
+	let shortlistBusy = $state(false);
+	$effect(() => {
+		shortlisted = !!data.isShortlisted;
+	});
+
+	async function toggleShortlist() {
+		if (!supabase || !user || !listing || shortlistBusy) return;
+		shortlistBusy = true;
+		if (shortlisted) {
+			shortlisted = false;
+			await supabase.from('shortlists').delete().eq('advertiser_id', user.id).eq('listing_id', listing.id);
+		} else {
+			shortlisted = true;
+			await supabase.from('shortlists').insert({ advertiser_id: user.id, listing_id: listing.id });
+		}
+		shortlistBusy = false;
+		await invalidateAll();
+	}
 
 	let bandDrafts = $state<Record<string, string>>({});
 	let savingBand = $state<string | null>(null);
@@ -292,6 +313,17 @@
 			<div class="row">
 				<Badges mechanism={listing.pricing_mechanism} />
 				<Badges status={listing.status} />
+				{#if isAdvertiser}
+					<button
+						class="shortlist-btn"
+						class:active={shortlisted}
+						onclick={toggleShortlist}
+						disabled={shortlistBusy}
+					>
+						<Bookmark size={15} fill={shortlisted ? 'currentColor' : 'none'} />
+						{shortlisted ? 'Shortlisted' : 'Shortlist'}
+					</button>
+				{/if}
 			</div>
 		</div>
 
@@ -730,5 +762,26 @@
 	.warn {
 		color: var(--red);
 		font-size: 13px;
+	}
+	.shortlist-btn {
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		background: none;
+		border: 1px solid var(--border-strong);
+		border-radius: 999px;
+		padding: 4px 10px;
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--text-muted);
+	}
+	.shortlist-btn:hover {
+		color: var(--text);
+		background: var(--panel-raised);
+	}
+	.shortlist-btn.active {
+		color: var(--accent-dark);
+		border-color: var(--accent);
+		background: var(--accent-bg);
 	}
 </style>

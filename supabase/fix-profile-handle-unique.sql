@@ -1,0 +1,16 @@
+-- CreatorConnect — enforce uniqueness on profiles.handle. Run after schema.sql.
+--
+-- Pre-existing gap, flagged during the company/org feature build: profiles.handle had no unique
+-- constraint since MVP, meaning two creators (or two advertisers/managers) could pick the same
+-- handle and silently break each other's public page — /c/[handle] and /u/[handle] both do a plain
+-- .eq('handle', ...).maybeSingle() lookup, which throws a "multiple rows returned" error if more
+-- than one profile matches. companies.handle got a unique index from day one (companies.sql); this
+-- file closes the same gap for profiles, now that two more handle-keyed public routes exist.
+--
+-- Verified against live data before writing this: zero existing duplicate handles among the current
+-- 6 seeded profiles, so this index can be created outright, no backfill/cleanup needed first.
+--
+-- Partial index (`where handle is not null`) so multiple profiles with no handle set yet (the
+-- common case right after signup, before a user visits /settings) don't collide with each other —
+-- only non-null handles need to be unique.
+create unique index if not exists profiles_handle_unique_idx on public.profiles (lower(handle)) where handle is not null;

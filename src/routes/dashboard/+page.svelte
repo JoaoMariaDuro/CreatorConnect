@@ -177,6 +177,22 @@
 			</div>
 		{/if}
 
+		{#if data.shortlisted?.length}
+			<div class="section-title">Shortlisted</div>
+			<div class="grid">
+				{#each data.shortlisted as l (l.id)}
+					<a class="card listing-card" href={`/listings/${l.id}`}>
+						<div class="row" style="justify-content: space-between; margin-bottom:8px;">
+							<Badges mechanism={l.pricing_mechanism} />
+							<Badges status={l.status} />
+						</div>
+						<strong>{l.creator?.display_name} — {l.content_type} on {l.platform}</strong>
+						<div class="muted" style="font-size:13px; margin-top:4px;">{l.availability_window}</div>
+					</a>
+				{/each}
+			</div>
+		{/if}
+
 		<div class="section-title">Browse more</div>
 		<a class="btn" href="/browse">Go to marketplace</a>
 	{:else if profile.role === 'manager'}

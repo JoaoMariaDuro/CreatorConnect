@@ -76,14 +76,19 @@ create trigger profiles_touch
   before update on public.profiles
   for each row execute function public.touch_updated_at();
 
--- Public-safe subset for browse/discovery — no stripe ids, no bio (deliberately narrow; widen later
--- if a real need shows up, per ARCHITECTURE.md's "everyone can select a public-safe subset" note).
--- `platform_handles` added here (still no stripe ids/bio/is_platform_admin) because deal/[id] and the
--- admin dispute detail page both need it to show a creator's YouTube/IG/TikTok handles alongside their
--- CreatorConnect handle — exactly the "widen later if a real need shows up" case the original comment
--- anticipated.
+-- Public-safe subset for browse/discovery — no stripe ids (deliberately narrow; widen later if a
+-- real need shows up, per ARCHITECTURE.md's "everyone can select a public-safe subset" note).
+-- `platform_handles` added because deal/[id] and the admin dispute detail page both need it to show
+-- a creator's YouTube/IG/TikTok handles alongside their CreatorConnect handle. `bio` added because
+-- /u/[handle] (advertiser/manager individual profile pages) is bio-centric in a way the creator
+-- media-kit isn't — both are the "widen later if a real need shows up" case the original comment
+-- anticipated, not scope creep. Still no stripe ids or is_platform_admin.
+-- `bio` is appended LAST, not inserted alongside the other columns above it: Postgres's
+-- `create or replace view` only allows appending new columns to the end of the list — inserting one
+-- in the middle throws (this was a real bug in an earlier version of this file, caught by testing
+-- live against the actual database rather than assuming the edit worked).
 create or replace view public.public_profiles as
-  select id, role, display_name, handle, avatar_url, niche_tags, follower_count, completed_deals_count, platform_handles
+  select id, role, display_name, handle, avatar_url, niche_tags, follower_count, completed_deals_count, platform_handles, bio
   from public.profiles;
 
 -- Auto-create a profiles row when someone signs up. Role and display_name come from signup metadata

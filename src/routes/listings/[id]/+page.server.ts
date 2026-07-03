@@ -52,8 +52,20 @@ export const load: PageServerLoad = async ({ params, locals: { safeGetSession, s
 	let isDelegatedManager = false;
 	let ownerManagerBands: any[] = [];
 	let myBand: { auto_accept_floor_cents: number | null; isDefault: boolean } | null = null;
+	let isShortlisted = false;
 	if (listing) {
 		const { user } = await safeGetSession();
+
+		if (user) {
+			const { data: shortlistRow } = await supabase
+				.from('shortlists')
+				.select('id')
+				.eq('advertiser_id', user.id)
+				.eq('listing_id', listing.id)
+				.maybeSingle();
+			isShortlisted = !!shortlistRow;
+		}
+
 		if (user && user.id !== listing.creator_id) {
 			const { data: link } = await supabase
 				.from('manager_creator_links')
@@ -113,5 +125,5 @@ export const load: PageServerLoad = async ({ params, locals: { safeGetSession, s
 		}
 	}
 
-	return { listing, reservation, offers, grant, isDelegatedManager, ownerManagerBands, myBand };
+	return { listing, reservation, offers, grant, isDelegatedManager, ownerManagerBands, myBand, isShortlisted };
 };

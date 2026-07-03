@@ -102,12 +102,25 @@ export const load: PageServerLoad = async ({ locals: { safeGetSession, supabase 
 				.order('created_at', { ascending: false })
 		]);
 
+		// Shortlist (PRODUCT.md Flow 2 — "browse ahead of committing"): only listings still actually
+		// open, since a shortlisted listing that's since gone to 'deal'/'expired' elsewhere isn't
+		// something worth re-surfacing on the dashboard.
+		const { data: shortlisted } = await supabase
+			.from('shortlists')
+			.select('id, listing:creator_listings (id, platform, content_type, availability_window, pricing_mechanism, status, creator:public_profiles!creator_listings_creator_id_fkey (display_name))')
+			.eq('advertiser_id', user.id)
+			.order('created_at', { ascending: false });
+		const shortlistedListings = (shortlisted ?? [])
+			.map((s: any) => s.listing)
+			.filter((l: any) => l && l.status === 'open');
+
 		return {
 			profile,
 			listings: [] as any[],
 			reservations: (reservations ?? []) as any[],
 			offers: (offers ?? []) as any[],
 			grants: (grants ?? []) as any[],
+			shortlisted: shortlistedListings,
 			roster: [] as any[]
 		};
 	}

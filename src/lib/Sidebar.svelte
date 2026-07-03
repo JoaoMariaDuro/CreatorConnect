@@ -12,7 +12,8 @@
 		LogIn,
 		KeyRound,
 		ShieldAlert,
-		Settings
+		Settings,
+		Building2
 	} from '@lucide/svelte';
 
 	const user = $derived(page.data.user);
@@ -71,6 +72,12 @@
 				<a class="nav-item" class:active={isActive('/settings/managers')} href="/settings/managers">
 					<Users size={17} />
 					<span>{profile.role === 'creator' ? 'Managers' : 'My Roster'}</span>
+				</a>
+			{/if}
+			{#if profile?.role === 'advertiser' || profile?.role === 'manager'}
+				<a class="nav-item" class:active={isActive('/settings/company')} href="/settings/company">
+					<Building2 size={17} />
+					<span>Company</span>
 				</a>
 			{/if}
 			<a class="nav-item" class:active={path === '/settings'} href="/settings">

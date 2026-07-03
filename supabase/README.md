@@ -52,6 +52,32 @@ the notification writes — no data is lost, nothing else changes.
     "Suggest an idea" flow. Plain client-side insert with RLS, not a security-definer RPC — this is
     low-stakes user-submitted content, not an audit trail. Only depends on `schema.sql` (`profiles`,
     `is_platform_admin()`), so it can run any time after that.
+13. [`companies.sql`](./companies.sql) — `companies` + `company_members` (advertiser/manager
+    multi-person orgs — owner/member roles, pending/active/revoked invite lifecycle), the
+    `public_companies` / `public_company_roster` views their public pages read through, and a
+    trigger blocking the last active owner of a company from being removed. Only depends on
+    `schema.sql` (`profiles`, `public_profiles`) and `delegation.sql` (`audit_log`, `notifications`)
+    — listed here as step 13 to avoid renumbering the rest of this list, but it can run any time
+    after step 5.
+14. [`rpc-companies.sql`](./rpc-companies.sql) — `create_company`, `invite_company_member_by_email`,
+    `accept_company_invite`. Must run after `companies.sql` (step 13).
+15. [`fix-profile-handle-unique.sql`](./fix-profile-handle-unique.sql) — a unique index on
+    `profiles.handle`, closing a gap that existed since MVP (two users could pick the same handle
+    and break each other's `/c/[handle]`/`/u/[handle]` page). Only depends on `schema.sql`
+    (`profiles`), so it can run any time after step 1 — listed last only to avoid renumbering.
+16. [`shortlists.sql`](./shortlists.sql) — advertiser shortlist/watchlist (`PRODUCT.md` Flow 2,
+    designed but never built until now). Plain RLS, no RPC — self-scoped both directions, an
+    advertiser's shortlist is private. Only depends on `schema.sql` (`profiles`) and `listings.sql`
+    (`creator_listings`), so it can run any time after step 2.
+
+**Note on `schema.sql`'s `public_profiles` view**: this session widened it to also expose `bio`
+(needed by `/u/[handle]`, the new advertiser/manager individual profile page — see the view's own
+comment). If your project already ran `schema.sql` once, re-run it — `create or replace view` is
+safe, no data is lost. **If you ran this before the `bio` column landed**: an earlier version of this
+edit inserted `bio` in the middle of the view's column list, which Postgres's `create or replace
+view` silently rejects (it only allows appending columns at the end) — that's fixed now, but if your
+first attempt at re-running `schema.sql` errored or the view still doesn't have `bio`, re-run it once
+more with the current file.
 
 ## Then: get the app talking to it
 

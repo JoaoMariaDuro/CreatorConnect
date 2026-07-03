@@ -1,9 +1,39 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { invalidateAll } from '$app/navigation';
+	import { Bookmark } from '@lucide/svelte';
 	import { formatMoney, formatDate, type Mechanism } from '$lib/format';
 	import Badges from '$lib/Badges.svelte';
 
 	let { data } = $props();
+	const user = $derived(page.data.user);
+	const profile = $derived(page.data.profile);
+	const supabase = $derived(page.data.supabase);
+	const isAdvertiser = $derived(profile?.role === 'advertiser');
+
+	let shortlisted = $state<Set<string>>(new Set());
+	$effect(() => {
+		shortlisted = new Set(data.shortlistedIds ?? []);
+	});
+	let togglingId = $state<string | null>(null);
+
+	async function toggleShortlist(e: MouseEvent, listingId: string) {
+		e.preventDefault();
+		e.stopPropagation();
+		if (!supabase || !user || togglingId) return;
+		togglingId = listingId;
+		if (shortlisted.has(listingId)) {
+			shortlisted.delete(listingId);
+			shortlisted = new Set(shortlisted);
+			await supabase.from('shortlists').delete().eq('advertiser_id', user.id).eq('listing_id', listingId);
+		} else {
+			shortlisted.add(listingId);
+			shortlisted = new Set(shortlisted);
+			await supabase.from('shortlists').insert({ advertiser_id: user.id, listing_id: listingId });
+		}
+		togglingId = null;
+		await invalidateAll();
+	}
 
 	let platformFilter = $state<'all' | string>('all');
 	let mechanismFilter = $state<'all' | Mechanism>('all');
@@ -99,7 +129,21 @@
 				<a class="card listing-card" href={`/listings/${listing.id}`}>
 					<div class="row" style="justify-content: space-between; margin-bottom: 8px;">
 						<Badges mechanism={listing.pricing_mechanism} />
-						<Badges status={listing.status} />
+						<div class="row" style="gap:8px;">
+							<Badges status={listing.status} />
+							{#if isAdvertiser}
+								<button
+									class="shortlist-btn"
+									class:active={shortlisted.has(listing.id)}
+									onclick={(e) => toggleShortlist(e, listing.id)}
+									disabled={togglingId === listing.id}
+									aria-label={shortlisted.has(listing.id) ? 'Remove from shortlist' : 'Add to shortlist'}
+									title={shortlisted.has(listing.id) ? 'Shortlisted' : 'Shortlist'}
+								>
+									<Bookmark size={15} fill={shortlisted.has(listing.id) ? 'currentColor' : 'none'} />
+								</button>
+							{/if}
+						</div>
 					</div>
 					<h3 style="margin: 4px 0 2px;">{listing.creator?.display_name}</h3>
 					<div class="muted" style="font-size:13px; margin-bottom:8px;">
@@ -182,5 +226,22 @@
 		font-size: 12px;
 		font-weight: 400;
 		color: var(--text-muted);
+	}
+	.shortlist-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: none;
+		border: none;
+		padding: 2px;
+		color: var(--text-muted);
+		border-radius: 6px;
+	}
+	.shortlist-btn:hover {
+		color: var(--text);
+		background: var(--panel-raised);
+	}
+	.shortlist-btn.active {
+		color: var(--accent-dark);
 	}
 </style>

@@ -66,7 +66,7 @@
 
 		saving = false;
 		if (error) {
-			err = error.message;
+			err = error.code === '23505' ? 'That handle is already taken.' : error.message;
 			return;
 		}
 		saved = true;

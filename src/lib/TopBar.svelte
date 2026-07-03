@@ -24,11 +24,15 @@
 		deal: 'Deal',
 		admin: 'Admin',
 		disputes: 'Disputes',
+		feedback: 'Feedback',
+		'audit-log': 'Audit Log',
 		settings: 'Settings',
 		managers: 'Managers',
+		company: 'Company',
 		roadmap: 'Roadmap',
 		login: 'Sign in',
-		c: 'Creator Profile'
+		c: 'Creator Profile',
+		u: 'Profile'
 	};
 
 	// For an unrecognized (dynamic id) segment, what generic label to show
@@ -38,7 +42,9 @@
 		deal: null,
 		disputes: 'Deal',
 		listings: 'Detail',
-		c: null
+		c: null,
+		u: null,
+		company: null
 	};
 
 	const breadcrumb = $derived.by(() => {
@@ -72,6 +78,7 @@
 	function notificationHref(n: any): string {
 		if (n.payload?.deal_id) return `/deal/${n.payload.deal_id}`;
 		if (n.payload?.listing_id) return `/listings/${n.payload.listing_id}`;
+		if (n.payload?.company_id) return '/settings/company';
 		return '#';
 	}
 
