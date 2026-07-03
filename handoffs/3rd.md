@@ -433,6 +433,21 @@ one real gap before it shipped: the Mechanism-A offer thread as originally writt
 the advertiser's court, not the creator's, so no seeded creator actually had anything in their own
 dashboard's Mechanism-A "needs attention" queue — fixed by adding a third counter-offer.
 
+**Fourth follow-on: a real security hole found and fixed, plus an admin test-role switcher**
+(commit `ca997d4`). While scoping a founder request ("let admins switch between creator/advertiser/
+manager to test everything from one account"), checking how `profiles.role` updates were gated
+surfaced a pre-existing privilege-escalation hole: the "update own profile" RLS policy
+(`schema.sql`) only checked row ownership, not which columns changed — meaning any signed-in user
+could call `supabase.from('profiles').update({ is_platform_admin: true })` directly and grant
+themselves founder/admin access, completely bypassing the "manual SQL statement only" design
+`docs/ROLE_ACCESS_AND_UX_SPEC.md` documented for that flag. Fixed by tightening the policy so
+`role`/`is_platform_admin` can never change via a plain client update (verified via an explicit
+three-scenario trace: blocks a self-granted admin flag, blocks a self-changed role, still allows
+normal profile field edits). The requested feature itself — `set_own_test_role_as_admin`, a narrow
+admin-only RPC that only ever touches the caller's own `role` — was then built as the sanctioned
+replacement path. `is_platform_admin` itself remains exclusively grantable via the one-time manual
+SQL statement, unchanged.
+
 ### What's still genuinely open
 
 - Everything this brief's own "explicitly out of scope" section named, unchanged: Stripe Connect,
