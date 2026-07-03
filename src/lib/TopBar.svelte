@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { Sparkles, CircleQuestionMark, MessageSquare } from '@lucide/svelte';
+	import { Sparkles, CircleQuestionMark, MessageSquare, Bell } from '@lucide/svelte';
 	import FeedbackModal from '$lib/FeedbackModal.svelte';
+	import { formatDateTime } from '$lib/format';
 
 	const user = $derived(page.data.user);
 	const profile = $derived(page.data.profile);
+	const supabase = $derived(page.data.supabase);
 	const path = $derived(page.url.pathname);
 
 	// v1-simple route-based breadcrumb: a static lookup from known path
@@ -25,7 +27,8 @@
 		settings: 'Settings',
 		managers: 'Managers',
 		roadmap: 'Roadmap',
-		login: 'Sign in'
+		login: 'Sign in',
+		c: 'Creator Profile'
 	};
 
 	// For an unrecognized (dynamic id) segment, what generic label to show
@@ -34,7 +37,8 @@
 	const dynamicChildLabel: Record<string, string | null> = {
 		deal: null,
 		disputes: 'Deal',
-		listings: 'Detail'
+		listings: 'Detail',
+		c: null
 	};
 
 	const breadcrumb = $derived.by(() => {
@@ -55,6 +59,37 @@
 	});
 
 	let feedbackOpen = $state(false);
+
+	// Synced from page.data on every load (nav, or a full reload after an RPC call writes a fresh
+	// row) — see +layout.server.ts. Kept as local state, not a $derived alias, so mark-as-read can
+	// update it optimistically without waiting on a full page.data refresh.
+	let notifications = $state<any[]>([]);
+	$effect(() => {
+		notifications = page.data.notifications ?? [];
+	});
+	const unreadCount = $derived(notifications.filter((n) => !n.read_at).length);
+
+	function notificationHref(n: any): string {
+		if (n.payload?.deal_id) return `/deal/${n.payload.deal_id}`;
+		if (n.payload?.listing_id) return `/listings/${n.payload.listing_id}`;
+		return '#';
+	}
+
+	async function markRead(n: any) {
+		if (n.read_at || !supabase) return;
+		const now = new Date().toISOString();
+		notifications = notifications.map((x) => (x.id === n.id ? { ...x, read_at: now } : x));
+		await supabase.from('notifications').update({ read_at: now }).eq('id', n.id);
+	}
+
+	async function markAllRead() {
+		if (!supabase) return;
+		const unreadIds = notifications.filter((n) => !n.read_at).map((n) => n.id);
+		if (!unreadIds.length) return;
+		const now = new Date().toISOString();
+		notifications = notifications.map((n) => (n.read_at ? n : { ...n, read_at: now }));
+		await supabase.from('notifications').update({ read_at: now }).in('id', unreadIds);
+	}
 </script>
 
 <header class="topbar">
@@ -80,6 +115,38 @@
 		</a>
 
 		{#if user}
+			<details class="notif-dropdown">
+				<summary class="icon-link notif-summary" aria-label="Notifications">
+					<Bell size={16} />
+					{#if unreadCount > 0}<span class="notif-badge">{unreadCount}</span>{/if}
+				</summary>
+				<div class="notif-panel">
+					<div class="notif-panel-header">
+						<strong>Notifications</strong>
+						{#if unreadCount > 0}
+							<button class="notif-mark-all" onclick={markAllRead}>Mark all read</button>
+						{/if}
+					</div>
+					{#if notifications.length === 0}
+						<div class="notif-empty muted">Nothing yet — you'll see updates here as they happen.</div>
+					{:else}
+						<div class="notif-list">
+							{#each notifications as n (n.id)}
+								<a
+									class="notif-item"
+									class:unread={!n.read_at}
+									href={notificationHref(n)}
+									onclick={() => markRead(n)}
+								>
+									<div class="notif-message">{n.payload?.message ?? n.type}</div>
+									<div class="notif-time muted">{formatDateTime(n.created_at)}</div>
+								</a>
+							{/each}
+						</div>
+					{/if}
+				</div>
+			</details>
+
 			<button class="icon-link" onclick={() => (feedbackOpen = true)}>
 				<MessageSquare size={16} />
 				<span>Feedback</span>
@@ -209,6 +276,93 @@
 		max-width: 140px;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	.notif-dropdown {
+		position: relative;
+	}
+	.notif-summary {
+		position: relative;
+		cursor: pointer;
+		list-style: none;
+	}
+	.notif-summary::-webkit-details-marker {
+		display: none;
+	}
+	.notif-badge {
+		position: absolute;
+		top: 2px;
+		right: 2px;
+		min-width: 15px;
+		height: 15px;
+		padding: 0 3px;
+		border-radius: 999px;
+		background: var(--red);
+		color: #fff;
+		font-size: 10px;
+		font-weight: 700;
+		line-height: 15px;
+		text-align: center;
+	}
+	.notif-panel {
+		position: absolute;
+		top: calc(100% + 8px);
+		right: 0;
+		width: 320px;
+		max-height: 400px;
+		overflow-y: auto;
+		background: var(--panel);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+		z-index: 80;
+	}
+	.notif-panel-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 12px 14px;
+		border-bottom: 1px solid var(--border);
+	}
+	.notif-mark-all {
+		background: none;
+		border: none;
+		color: var(--accent);
+		font-size: 12px;
+		font-weight: 600;
+		padding: 0;
+	}
+	.notif-empty {
+		padding: 20px 14px;
+		font-size: 13px;
+	}
+	.notif-list {
+		display: flex;
+		flex-direction: column;
+	}
+	.notif-item {
+		display: block;
+		padding: 10px 14px;
+		border-bottom: 1px solid var(--border);
+		color: inherit;
+	}
+	.notif-item:last-child {
+		border-bottom: none;
+	}
+	.notif-item:hover {
+		background: var(--panel-raised);
+		text-decoration: none;
+	}
+	.notif-item.unread {
+		background: var(--accent-bg);
+	}
+	.notif-message {
+		font-size: 13px;
+		line-height: 1.4;
+	}
+	.notif-time {
+		font-size: 11px;
+		margin-top: 3px;
 	}
 
 	@media (max-width: 640px) {

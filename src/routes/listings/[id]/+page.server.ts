@@ -6,7 +6,7 @@ export const load: PageServerLoad = async ({ params, locals: { safeGetSession, s
 	const { data: listing } = await supabase
 		.from('creator_listings')
 		.select(
-			`*, creator:profiles!creator_listings_creator_id_fkey (id, display_name, handle, follower_count, niche_tags, completed_deals_count)`
+			`*, creator:public_profiles!creator_listings_creator_id_fkey (id, display_name, handle, follower_count, niche_tags, completed_deals_count)`
 		)
 		.eq('id', params.id)
 		.maybeSingle();
@@ -15,7 +15,7 @@ export const load: PageServerLoad = async ({ params, locals: { safeGetSession, s
 	if (listing?.pricing_mechanism === 'D') {
 		const { data } = await supabase
 			.from('reservations')
-			.select('*, advertiser:profiles!reservations_advertiser_id_fkey (id, display_name)')
+			.select('*, advertiser:public_profiles!reservations_advertiser_id_fkey (id, display_name)')
 			.eq('listing_id', params.id)
 			.order('created_at', { ascending: false })
 			.limit(1)
@@ -37,7 +37,7 @@ export const load: PageServerLoad = async ({ params, locals: { safeGetSession, s
 	if (listing?.pricing_mechanism === 'C') {
 		const { data } = await supabase
 			.from('listing_exclusivity_grants')
-			.select('*, advertiser:profiles!listing_exclusivity_grants_advertiser_id_fkey (id, display_name)')
+			.select('*, advertiser:public_profiles!listing_exclusivity_grants_advertiser_id_fkey (id, display_name)')
 			.eq('listing_id', params.id)
 			.order('created_at', { ascending: false })
 			.limit(1)
@@ -98,7 +98,7 @@ export const load: PageServerLoad = async ({ params, locals: { safeGetSession, s
 			// listing_price_bands — confirm_deal_as fails closed with no band set, per rpc-mechanism-d.sql).
 			const { data: links } = await supabase
 				.from('manager_creator_links')
-				.select('manager_id, manager:profiles!manager_creator_links_manager_id_fkey (id, display_name)')
+				.select('manager_id, manager:public_profiles!manager_creator_links_manager_id_fkey (id, display_name)')
 				.eq('creator_id', user.id)
 				.eq('status', 'active');
 			const { data: bands } = await supabase

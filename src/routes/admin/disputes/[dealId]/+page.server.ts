@@ -14,8 +14,8 @@ export const load: PageServerLoad = async ({ params, locals: { supabase } }) => 
 		.from('deals')
 		.select(
 			`*, listing:creator_listings (platform, content_type, pricing_mechanism),
-			 creator:profiles!deals_creator_id_fkey (display_name, handle, platform_handles),
-			 advertiser:profiles!deals_advertiser_id_fkey (display_name)`
+			 creator:public_profiles!deals_creator_id_fkey (display_name, handle, platform_handles),
+			 advertiser:public_profiles!deals_advertiser_id_fkey (display_name)`
 		)
 		.eq('id', params.dealId)
 		.maybeSingle();
@@ -54,7 +54,7 @@ export const load: PageServerLoad = async ({ params, locals: { supabase } }) => 
 	// syntax supports disambiguating two FKs to the same target table in one select via two separate
 	// aliased embeds, so a single query covers both joins.
 	const auditSelect =
-		`*, actor:profiles!audit_log_actor_id_fkey (display_name), acting_as:profiles!audit_log_acting_as_id_fkey (display_name)`;
+		`*, actor:public_profiles!audit_log_actor_id_fkey (display_name), acting_as:public_profiles!audit_log_acting_as_id_fkey (display_name)`;
 
 	const dealAuditQuery = supabase
 		.from('audit_log')

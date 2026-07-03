@@ -63,6 +63,14 @@ begin
 	insert into public.audit_log (actor_id, acting_as_id, action, target_table, target_id, after)
 	values (auth.uid(), case when p_from = 'creator' and v_is_manager then v_listing.creator_id else null end, 'offer.submit', 'listing_offers', v_offer.id, to_jsonb(v_offer));
 
+	insert into public.notifications (user_id, type, payload)
+	values (
+		case when p_from = 'advertiser' then v_listing.creator_id else v_offer.advertiser_id end,
+		'offer.new',
+		jsonb_build_object('listing_id', p_listing_id, 'offer_id', v_offer.id,
+			'message', case when p_from = 'advertiser' then 'New offer received on your listing.' else 'The creator sent a counter-offer.' end)
+	);
+
 	return v_offer;
 end $$;
 
@@ -108,6 +116,11 @@ begin
 	insert into public.audit_log (actor_id, acting_as_id, action, target_table, target_id, after)
 	values (auth.uid(), case when v_is_manager then p_creator_id else null end, 'offer.accept', 'deals', v_deal.id, to_jsonb(v_deal));
 
+	insert into public.notifications (user_id, type, payload)
+	values (v_deal.advertiser_id, 'deal.confirmed',
+		jsonb_build_object('deal_id', v_deal.id, 'listing_id', v_deal.listing_id,
+			'message', 'Your deal is confirmed at $' || (v_deal.final_price_cents / 100.0) || '.'));
+
 	return v_deal;
 end $$;
 
@@ -145,6 +158,11 @@ begin
 	insert into public.audit_log (actor_id, action, target_table, target_id, after)
 	values (auth.uid(), 'offer.accept', 'deals', v_deal.id, to_jsonb(v_deal));
 
+	insert into public.notifications (user_id, type, payload)
+	values (v_deal.creator_id, 'deal.confirmed',
+		jsonb_build_object('deal_id', v_deal.id, 'listing_id', v_deal.listing_id,
+			'message', 'Your deal is confirmed at $' || (v_deal.final_price_cents / 100.0) || '.'));
+
 	return v_deal;
 end $$;
 
@@ -175,6 +193,11 @@ begin
 
 	insert into public.audit_log (actor_id, action, target_table, target_id, after)
 	values (auth.uid(), 'exclusivity.request', 'listing_exclusivity_grants', v_grant.id, to_jsonb(v_grant));
+
+	insert into public.notifications (user_id, type, payload)
+	values (v_listing.creator_id, 'exclusivity.requested',
+		jsonb_build_object('listing_id', p_listing_id, 'grant_id', v_grant.id,
+			'message', 'An advertiser requested exclusive early access to your listing.'));
 
 	return v_grant;
 end $$;
@@ -216,6 +239,14 @@ begin
 
 	insert into public.audit_log (actor_id, action, target_table, target_id, after)
 	values (auth.uid(), 'exclusivity.propose_terms', 'listing_exclusivity_grants', p_grant_id, to_jsonb(v_grant));
+
+	insert into public.notifications (user_id, type, payload)
+	select
+		case when p_from = 'advertiser' then l.creator_id else v_grant.advertiser_id end,
+		'exclusivity.terms_proposed',
+		jsonb_build_object('grant_id', v_grant.id, 'listing_id', v_grant.listing_id,
+			'message', case when p_from = 'advertiser' then 'An advertiser proposed terms for your exclusivity grant.' else 'The creator proposed terms for your exclusivity grant.' end)
+	from public.creator_listings l where l.id = v_grant.listing_id;
 
 	return v_grant;
 end $$;
@@ -268,6 +299,11 @@ begin
 	insert into public.audit_log (actor_id, acting_as_id, action, target_table, target_id, after)
 	values (auth.uid(), case when v_is_manager then p_creator_id else null end, 'exclusivity.convert', 'deals', v_deal.id, to_jsonb(v_deal));
 
+	insert into public.notifications (user_id, type, payload)
+	values (v_deal.advertiser_id, 'deal.confirmed',
+		jsonb_build_object('deal_id', v_deal.id, 'listing_id', v_deal.listing_id,
+			'message', 'Your deal is confirmed at $' || (v_deal.final_price_cents / 100.0) || '.'));
+
 	return v_deal;
 end $$;
 
@@ -309,6 +345,11 @@ begin
 	insert into public.audit_log (actor_id, action, target_table, target_id, after)
 	values (auth.uid(), 'exclusivity.convert', 'deals', v_deal.id, to_jsonb(v_deal));
 
+	insert into public.notifications (user_id, type, payload)
+	values (v_deal.creator_id, 'deal.confirmed',
+		jsonb_build_object('deal_id', v_deal.id, 'listing_id', v_deal.listing_id,
+			'message', 'Your deal is confirmed at $' || (v_deal.final_price_cents / 100.0) || '.'));
+
 	return v_deal;
 end $$;
 
@@ -330,4 +371,10 @@ begin
 
 	insert into public.audit_log (actor_id, action, target_table, target_id, after)
 	values (v_grant.advertiser_id, 'exclusivity.expire', 'listing_exclusivity_grants', p_grant_id, to_jsonb(v_grant));
+
+	insert into public.notifications (user_id, type, payload)
+	select creator_id, 'exclusivity.expired',
+		jsonb_build_object('listing_id', id, 'grant_id', p_grant_id,
+			'message', 'An exclusivity grant on your listing expired.')
+	from public.creator_listings where id = v_grant.listing_id;
 end $$;

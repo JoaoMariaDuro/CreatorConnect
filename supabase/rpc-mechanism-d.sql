@@ -89,6 +89,13 @@ begin
   insert into public.audit_log (actor_id, action, target_table, target_id, after)
   values (auth.uid(), 'reservation.place', 'reservations', v_reservation.id, to_jsonb(v_reservation));
 
+  insert into public.notifications (user_id, type, payload)
+  values (
+    v_listing.creator_id, 'reservation.new',
+    jsonb_build_object('listing_id', v_listing.id, 'reservation_id', v_reservation.id,
+      'message', 'New reservation on your listing — confirm your price before the deadline.')
+  );
+
   return v_reservation;
 end $$;
 
@@ -147,6 +154,13 @@ begin
   insert into public.audit_log (actor_id, acting_as_id, action, target_table, target_id, after)
   values (auth.uid(), case when v_is_manager then p_creator_id else null end, 'reservation.confirm', 'deals', v_deal.id, to_jsonb(v_deal));
 
+  insert into public.notifications (user_id, type, payload)
+  values (
+    v_deal.advertiser_id, 'deal.confirmed',
+    jsonb_build_object('deal_id', v_deal.id, 'listing_id', v_deal.listing_id,
+      'message', 'Your deal is confirmed at $' || (v_deal.final_price_cents / 100.0) || '.')
+  );
+
   return v_deal;
 end $$;
 
@@ -168,4 +182,10 @@ begin
 
   insert into public.audit_log (actor_id, action, target_table, target_id, after)
   values (v_reservation.advertiser_id, 'reservation.expire', 'reservations', p_reservation_id, to_jsonb(v_reservation));
+
+  insert into public.notifications (user_id, type, payload)
+  select creator_id, 'reservation.expired',
+    jsonb_build_object('listing_id', id, 'reservation_id', p_reservation_id,
+      'message', 'A reservation on your listing expired without confirmation — it''s back on the market.')
+  from public.creator_listings where id = v_reservation.listing_id;
 end $$;

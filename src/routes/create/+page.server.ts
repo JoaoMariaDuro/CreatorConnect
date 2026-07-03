@@ -13,7 +13,7 @@ export const load: PageServerLoad = async ({ locals: { safeGetSession, supabase 
 		if (profile?.role === 'manager') {
 			const { data } = await supabase
 				.from('manager_creator_links')
-				.select('creator:profiles!manager_creator_links_creator_id_fkey (id, display_name)')
+				.select('creator:public_profiles!manager_creator_links_creator_id_fkey (id, display_name)')
 				.eq('manager_id', user.id)
 				.eq('status', 'active');
 			roster = (data ?? []).map((r: any) => r.creator).filter(Boolean);

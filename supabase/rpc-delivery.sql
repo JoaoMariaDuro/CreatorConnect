@@ -32,6 +32,11 @@ begin
   insert into public.audit_log (actor_id, action, target_table, target_id, after)
   values (auth.uid(), 'deal.delivery_confirmed', 'deals', p_deal_id, to_jsonb(v_deal));
 
+  insert into public.notifications (user_id, type, payload)
+  values (v_deal.creator_id, 'delivery.confirmed',
+    jsonb_build_object('deal_id', v_deal.id,
+      'message', 'Delivery confirmed — payment releases automatically in 5 days unless disputed.'));
+
   return v_deal;
 end $$;
 
@@ -59,6 +64,13 @@ begin
 
   insert into public.audit_log (actor_id, action, target_table, target_id, after)
   values (auth.uid(), 'deal.disputed', 'deals', p_deal_id, jsonb_build_object('deal', to_jsonb(v_deal), 'reason', p_reason));
+
+  insert into public.notifications (user_id, type, payload)
+  values (
+    case when auth.uid() = v_deal.advertiser_id then v_deal.creator_id else v_deal.advertiser_id end,
+    'deal.disputed',
+    jsonb_build_object('deal_id', v_deal.id, 'message', 'A deal was flagged as disputed and is now frozen pending review.')
+  );
 
   return v_deal;
 end $$;
@@ -90,6 +102,10 @@ begin
 
   insert into public.audit_log (actor_id, action, target_table, target_id, after)
   values (v_deal.advertiser_id, 'deal.completed', 'deals', p_deal_id, to_jsonb(v_deal));
+
+  insert into public.notifications (user_id, type, payload)
+  values (v_deal.creator_id, 'deal.completed',
+    jsonb_build_object('deal_id', v_deal.id, 'message', 'A deal completed and payment released.'));
 
   return v_deal;
 end $$;

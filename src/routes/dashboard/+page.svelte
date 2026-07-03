@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Badges from '$lib/Badges.svelte';
+	import { formatMoney, formatDate } from '$lib/format';
 
 	let { data } = $props();
 	const profile = $derived(data.profile);
@@ -47,6 +48,19 @@
 						<strong>{l.content_type} on {l.platform}</strong>
 						<div class="muted" style="font-size:13px; margin-top:4px;">{l.availability_window}</div>
 						<div class="muted" style="font-size:13px; margin-top:6px;">Exclusivity grant awaiting your response</div>
+					</a>
+				{/each}
+			</div>
+		{/if}
+
+		{#if data.upcomingDeliveries?.length}
+			<div class="section-title">Upcoming deliveries</div>
+			<div class="grid">
+				{#each data.upcomingDeliveries as d (d.id)}
+					<a class="card listing-card" href={`/deal/${d.id}`}>
+						<strong>{d.advertiser?.display_name}</strong>
+						<div class="muted" style="font-size:13px; margin-top:4px;">{formatMoney(d.final_price_cents)} · due {formatDate(d.delivery_due_at)}</div>
+						<div class="muted" style="font-size:13px; margin-top:4px;">Status: {d.status}</div>
 					</a>
 				{/each}
 			</div>
@@ -128,6 +142,69 @@
 	{:else if profile.role === 'manager'}
 		<p class="muted">Signed in as {profile.display_name} · representing {data.roster.length} creator{data.roster.length === 1 ? '' : 's'}</p>
 
+		<div class="grid">
+			<div class="card">
+				<div class="muted" style="font-size:13px;">Commission earned</div>
+				<div style="font-size:28px; font-weight:600; margin-top:4px;">{formatMoney(data.commissionEarnedCents ?? 0)}</div>
+				<div class="muted" style="font-size:12px; margin-top:6px;">From completed deals across your roster</div>
+			</div>
+			<div class="card">
+				<div class="muted" style="font-size:13px;">Commission pending</div>
+				<div style="font-size:28px; font-weight:600; margin-top:4px;">{formatMoney(data.commissionPendingCents ?? 0)}</div>
+				<div class="muted" style="font-size:12px; margin-top:6px;">From deals in progress, not yet completed</div>
+			</div>
+		</div>
+		<div class="muted" style="font-size:12px; margin: 8px 0 4px;">Estimate based on your per-creator commission rate — not yet tied to an automated payout.</div>
+
+		{#if data.pendingListingIds?.length || data.pendingOfferListingIds?.length || data.pendingGrantListingIds?.length}
+			<div class="section-title">Needs attention across your roster</div>
+			<div class="grid">
+				{#each data.listings.filter((l: any) => data.pendingListingIds.includes(l.id)) as l (l.id)}
+					<a class="card listing-card" href={`/listings/${l.id}`}>
+						<div class="row" style="justify-content: space-between; margin-bottom:8px;">
+							<Badges mechanism={l.pricing_mechanism} />
+							<Badges status={l.status} />
+						</div>
+						<strong>{l.creator?.display_name} — {l.content_type} on {l.platform}</strong>
+						<div class="muted" style="font-size:13px; margin-top:6px;">Reservation awaiting creator's price confirmation</div>
+					</a>
+				{/each}
+				{#each data.listings.filter((l: any) => data.pendingOfferListingIds.includes(l.id)) as l (l.id)}
+					<a class="card listing-card" href={`/listings/${l.id}`}>
+						<div class="row" style="justify-content: space-between; margin-bottom:8px;">
+							<Badges mechanism={l.pricing_mechanism} />
+							<Badges status={l.status} />
+						</div>
+						<strong>{l.creator?.display_name} — {l.content_type} on {l.platform}</strong>
+						<div class="muted" style="font-size:13px; margin-top:6px;">Offer awaiting response</div>
+					</a>
+				{/each}
+				{#each data.listings.filter((l: any) => data.pendingGrantListingIds.includes(l.id)) as l (l.id)}
+					<a class="card listing-card" href={`/listings/${l.id}`}>
+						<div class="row" style="justify-content: space-between; margin-bottom:8px;">
+							<Badges mechanism={l.pricing_mechanism} />
+							<Badges status={l.status} />
+						</div>
+						<strong>{l.creator?.display_name} — {l.content_type} on {l.platform}</strong>
+						<div class="muted" style="font-size:13px; margin-top:6px;">Exclusivity grant awaiting response</div>
+					</a>
+				{/each}
+			</div>
+		{/if}
+
+		{#if data.upcomingDeliveries?.length}
+			<div class="section-title">Upcoming deliveries</div>
+			<div class="grid">
+				{#each data.upcomingDeliveries as d (d.id)}
+					<a class="card listing-card" href={`/deal/${d.id}`}>
+						<strong>{d.creator?.display_name} → {d.advertiser?.display_name}</strong>
+						<div class="muted" style="font-size:13px; margin-top:4px;">{formatMoney(d.final_price_cents)} · due {formatDate(d.delivery_due_at)}</div>
+						<div class="muted" style="font-size:13px; margin-top:4px;">Status: {d.status}</div>
+					</a>
+				{/each}
+			</div>
+		{/if}
+
 		<div class="section-title">Your roster</div>
 		{#if data.roster.length === 0}
 			<div class="empty">No linked creators yet — a creator needs to grant you access before you can manage listings on their behalf.</div>
@@ -138,7 +215,7 @@
 					<div class="card">
 						<strong>{c.display_name}</strong>
 						<div class="muted" style="font-size:13px; margin: 2px 0 10px;">{c.handle ?? ''} · {(c.follower_count ?? 0).toLocaleString()} followers</div>
-						<div class="muted" style="font-size:13px;">{count} listing{count === 1 ? '' : 's'}</div>
+						<div class="muted" style="font-size:13px;">{count} listing{count === 1 ? '' : 's'} · {c.activeDealsCount ?? 0} in progress · {c.completedDealsCount ?? 0} completed</div>
 					</div>
 				{/each}
 			</div>

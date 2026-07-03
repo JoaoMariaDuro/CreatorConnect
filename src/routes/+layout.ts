@@ -34,6 +34,7 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 		supabaseReady: Boolean(url && key),
 		session: data?.session ?? null,
 		user: data?.user ?? null,
-		profile: data?.profile ?? null
+		profile: data?.profile ?? null,
+		notifications: data?.notifications ?? []
 	};
 };

@@ -9,8 +9,8 @@ export const load: PageServerLoad = async ({ params, locals: { safeGetSession, s
 		.from('deals')
 		.select(
 			`*, listing:creator_listings (platform, content_type, pricing_mechanism),
-			 creator:profiles!deals_creator_id_fkey (display_name, handle, platform_handles),
-			 advertiser:profiles!deals_advertiser_id_fkey (display_name)`
+			 creator:public_profiles!deals_creator_id_fkey (display_name, handle, platform_handles),
+			 advertiser:public_profiles!deals_advertiser_id_fkey (display_name)`
 		)
 		.eq('id', params.id)
 		.maybeSingle();

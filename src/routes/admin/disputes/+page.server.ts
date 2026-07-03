@@ -12,8 +12,8 @@ export const load: PageServerLoad = async ({ locals: { supabase } }) => {
 		.from('deals')
 		.select(
 			`*, listing:creator_listings (pricing_mechanism),
-			 creator:profiles!deals_creator_id_fkey (display_name),
-			 advertiser:profiles!deals_advertiser_id_fkey (display_name)`
+			 creator:public_profiles!deals_creator_id_fkey (display_name),
+			 advertiser:public_profiles!deals_advertiser_id_fkey (display_name)`
 		)
 		.eq('status', 'disputed');
 

@@ -4,6 +4,14 @@ Run these files **in this exact order**, once, in your Supabase project's SQL Ed
 (left sidebar → SQL Editor → New query → paste → Run). Each is idempotent (`create table if not
 exists`, `drop policy if exists` before `create policy`) so re-running one after a mistake is safe.
 
+**Update note (this pass):** `rpc-mechanism-d.sql`, `rpc-mechanism-ac.sql`, `rpc-delivery.sql`,
+`rpc-delegation.sql`, and `rpc-admin.sql` each got a small addition — every state-transition RPC now
+also writes a row into `notifications` (the table `delegation.sql` already created but nothing wrote
+to) for whoever needs to know something happened, feeding the new bell icon in the top bar. Every
+function uses `create or replace function`, so if your project already ran the original versions,
+just re-run these 5 files again (in the same relative order as the numbered list below) to pick up
+the notification writes — no data is lost, nothing else changes.
+
 1. [`schema.sql`](./schema.sql) — profiles table + the trigger that creates a profile row on signup.
 2. [`listings.sql`](./listings.sql) — `creator_listings`, the pricing-mechanism-aware listing table.
 3. [`negotiations.sql`](./negotiations.sql) — the three mechanism-specific negotiation tables

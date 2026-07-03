@@ -6,15 +6,28 @@ export const load: LayoutServerLoad = async ({ locals: { safeGetSession, supabas
 	const { session, user } = await safeGetSession();
 
 	let profile: { id: string; role: string; display_name: string; is_platform_admin?: boolean } | null = null;
+	let notifications: any[] = [];
 	if (user && supabase) {
 		const { data } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
 		profile = data ?? null;
+
+		// Loaded once here (same "shared across every page" reasoning as profile above) so the top bar's
+		// notification bell doesn't need its own route-level fetch. `notifications` RLS already scopes
+		// this to the caller's own rows.
+		const { data: notifData } = await supabase
+			.from('notifications')
+			.select('id, type, payload, read_at, created_at')
+			.eq('user_id', user.id)
+			.order('created_at', { ascending: false })
+			.limit(20);
+		notifications = notifData ?? [];
 	}
 
 	return {
 		session,
 		user: user ? { id: user.id, email: user.email } : null,
 		profile,
+		notifications,
 		// forwarded to the universal +layout.ts so the browser client shares the same auth cookies
 		cookies: cookies.getAll()
 	};

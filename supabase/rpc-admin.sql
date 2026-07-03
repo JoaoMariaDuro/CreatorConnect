@@ -108,5 +108,10 @@ begin
     )
   );
 
+  insert into public.notifications (user_id, type, payload)
+  values
+    (v_deal.creator_id, 'deal.dispute_resolved', jsonb_build_object('deal_id', v_deal.id, 'resolution', p_resolution, 'message', 'Your disputed deal was resolved: ' || p_resolution || '.')),
+    (v_deal.advertiser_id, 'deal.dispute_resolved', jsonb_build_object('deal_id', v_deal.id, 'resolution', p_resolution, 'message', 'Your disputed deal was resolved: ' || p_resolution || '.'));
+
   return v_deal;
 end $$;

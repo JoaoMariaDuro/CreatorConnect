@@ -78,8 +78,12 @@ create trigger profiles_touch
 
 -- Public-safe subset for browse/discovery — no stripe ids, no bio (deliberately narrow; widen later
 -- if a real need shows up, per ARCHITECTURE.md's "everyone can select a public-safe subset" note).
+-- `platform_handles` added here (still no stripe ids/bio/is_platform_admin) because deal/[id] and the
+-- admin dispute detail page both need it to show a creator's YouTube/IG/TikTok handles alongside their
+-- CreatorConnect handle — exactly the "widen later if a real need shows up" case the original comment
+-- anticipated.
 create or replace view public.public_profiles as
-  select id, role, display_name, handle, avatar_url, niche_tags, follower_count, completed_deals_count
+  select id, role, display_name, handle, avatar_url, niche_tags, follower_count, completed_deals_count, platform_handles
   from public.profiles;
 
 -- Auto-create a profiles row when someone signs up. Role and display_name come from signup metadata

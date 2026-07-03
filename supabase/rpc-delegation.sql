@@ -36,6 +36,10 @@ begin
   insert into public.audit_log (actor_id, action, target_table, target_id, after)
   values (auth.uid(), 'manager_link.invite', 'manager_creator_links', v_link.id, to_jsonb(v_link));
 
+  insert into public.notifications (user_id, type, payload)
+  values (v_manager_id, 'manager_link.invited',
+    jsonb_build_object('link_id', v_link.id, 'message', 'You''ve been invited to manage a creator''s account.'));
+
   return v_link;
 end $$;
 
@@ -66,6 +70,10 @@ begin
 
   insert into public.audit_log (actor_id, action, target_table, target_id, after)
   values (auth.uid(), 'manager_link.accept', 'manager_creator_links', p_link_id, to_jsonb(v_link));
+
+  insert into public.notifications (user_id, type, payload)
+  values (v_link.creator_id, 'manager_link.accepted',
+    jsonb_build_object('link_id', v_link.id, 'message', 'A manager accepted your invitation.'));
 
   return v_link;
 end $$;
