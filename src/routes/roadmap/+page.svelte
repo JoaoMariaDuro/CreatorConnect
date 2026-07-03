@@ -37,6 +37,20 @@
 				<p class="muted">Creators can grant managers access, set a per-listing auto-accept price band, and revoke at any time.</p>
 			</div>
 		</div>
+		<div class="milestone done">
+			<CheckCircle2 size={18} />
+			<div>
+				<strong>Mechanisms A and C, fully live</strong>
+				<p class="muted">Fixed-price-and-counter and reserve-the-relationship both have real negotiation flows end to end, same as mechanism D.</p>
+			</div>
+		</div>
+		<div class="milestone done">
+			<CheckCircle2 size={18} />
+			<div>
+				<strong>Scheduled automation</strong>
+				<p class="muted">Stale reservations auto-expire, delivered deals auto-release after the hold window, and mechanism C's exclusivity grants auto-expire — all via scheduled jobs.</p>
+			</div>
+		</div>
 	</div>
 
 	<div class="section-title">In progress</div>
@@ -46,24 +60,6 @@
 			<div>
 				<strong>Real payments</strong>
 				<p class="muted">Stripe Connect integration — deposits, split payouts, and escrow are currently simulated in the data model, not real money movement yet.</p>
-			</div>
-		</div>
-		<div class="milestone">
-			<Clock size={18} />
-			<div>
-				<strong>Scheduled automation</strong>
-				<p class="muted">Auto-expiring stale reservations and auto-releasing delivered deals after the hold window — the logic exists, the scheduler doesn't yet.</p>
-			</div>
-		</div>
-	</div>
-
-	<div class="section-title">Next up</div>
-	<div class="stack">
-		<div class="milestone">
-			<Circle size={18} />
-			<div>
-				<strong>Mechanisms A and C, fully live</strong>
-				<p class="muted">Fixed-price-and-counter and reserve-the-relationship are visible in listings today but not yet backed by real negotiation flows — mechanism D's pattern gets applied to both next.</p>
 			</div>
 		</div>
 	</div>
