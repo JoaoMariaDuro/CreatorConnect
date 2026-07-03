@@ -64,6 +64,40 @@ exists`, `drop policy if exists` before `create policy`) so re-running one after
       the new admin RLS policies and `resolve_dispute_as_admin` (`rpc-admin.sql`) pick it up on your
       next request.
 
+## Test/seed data (optional, for manual QA)
+
+Want to click through the app (dashboards, negotiation flows, manager delegation, admin disputes,
+staleness badges, reputation counts) against a populated app instead of an empty one? Two steps, run
+once, in this order — **after** you've already run the 11 numbered files above:
+
+1. **Create 6 confirmed test accounts** (3 creators, 2 advertisers, 1 manager) and get a sign-in link
+   for each, with no real inbox needed:
+   ```
+   export PUBLIC_SUPABASE_URL=https://xxxx.supabase.co        # same value as in your .env
+   export SUPABASE_SERVICE_ROLE_KEY=<paste from dashboard → Project Settings → API keys, this run only>
+   node scripts/seed-test-users.mjs
+   ```
+   This uses the Supabase admin API (`auth.admin.createUser` + `auth.admin.generateLink`) to create
+   6 accounts on the obviously-fake domain `@seed.creatorconnect.test`, and prints a magic-link
+   sign-in URL for each one directly to your terminal — copy any of them into a browser to be signed
+   in as that persona. `SUPABASE_SERVICE_ROLE_KEY` is a secret with full admin rights over your
+   project: export it for this one run only, never commit it, never put it in `.env`. The script is
+   safe to re-run later if a printed link goes stale (links are single-use and expire) — it detects
+   already-existing test accounts and just prints a fresh link instead of creating duplicates.
+
+2. **Populate listings, negotiations, deals, and delegation data** for those 6 accounts by running
+   [`seed-data.sql`](./seed-data.sql) in the SQL Editor, same as any other file in this folder. It
+   finds the 6 accounts from step 1 by email and covers every mechanism (A/C/D) in both a fresh
+   "no negotiation yet" state and an in-progress negotiation state, a draft listing, every
+   `performance_stats` staleness tier (fresh/soft-stale/hard-stale/never-entered), every `deals`
+   status (active/delivered/completed/disputed — including a disputed deal flagged by the test
+   manager account on a test creator's behalf, for the admin "acting as" audit trail), and manager
+   delegation links exercising both the per-listing and creator-default price-band fallback paths.
+
+Both of these only ever INSERT test rows (plus a couple of UPDATEs against the same test profiles) —
+neither touches real data. `seed-data.sql` is NOT part of the numbered list above and is entirely
+optional to run.
+
 ## What's NOT here yet
 
 - **Stripe Connect integration** — the escrow tables exist but nothing writes to them yet. That's
