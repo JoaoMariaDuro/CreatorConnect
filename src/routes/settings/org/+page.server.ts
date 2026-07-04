@@ -35,6 +35,9 @@ export const load: PageServerLoad = async ({ locals: { safeGetSession, supabase 
 	let roster: any[] = [];
 	let myRepresentedCreators: any[] = [];
 	let showcased: any[] = [];
+	let inviteTokens: any[] = [];
+	let advertiserStats: any = null;
+	let sponsoredCreators: any[] = [];
 	if (activeMembership) {
 		const { data: rosterData } = await supabase
 			.from('org_members')
@@ -44,6 +47,44 @@ export const load: PageServerLoad = async ({ locals: { safeGetSession, supabase 
 			.eq('org_id', activeMembership.org.id)
 			.order('created_at', { ascending: false });
 		roster = rosterData ?? [];
+
+		// Invite links — RLS already scopes org_invite_tokens select to an active owner
+		// (is_active_org_owner), so a non-owner querying this just gets zero rows back, no extra
+		// role check needed here.
+		if (activeMembership.role === 'owner') {
+			const { data: tokenData } = await supabase
+				.from('org_invite_tokens')
+				.select('id, role, target_email, max_uses, use_count, expires_at, revoked_at, created_at')
+				.eq('org_id', activeMembership.org.id)
+				.order('created_at', { ascending: false });
+			inviteTokens = tokenData ?? [];
+		}
+
+		// Analytics + "creators sponsored" — advertiser orgs only, owner only. Both RPCs
+		// (rpc-org-advertiser-stats.sql) are security-definer aggregates over every active member's
+		// deals; the org layer itself has no RLS path to deals rows (see orgs.sql's own "no org-level
+		// deal visibility" non-goal), so this is intentionally counts/sums only, not raw deal rows.
+		if (activeMembership.org.org_type === 'advertiser' && activeMembership.role === 'owner') {
+			const { data: statsRows } = await supabase.rpc('get_org_advertiser_stats', {
+				p_org_id: activeMembership.org.id
+			});
+			advertiserStats = (statsRows ?? [])[0] ?? null;
+
+			const { data: sponsoredRows } = await supabase.rpc('get_org_sponsored_creators', {
+				p_org_id: activeMembership.org.id
+			});
+			const creatorIds = (sponsoredRows ?? []).map((r: any) => r.creator_id);
+			if (creatorIds.length) {
+				const { data: creatorProfiles } = await supabase
+					.from('public_profiles')
+					.select('id, display_name, handle, avatar_url')
+					.in('id', creatorIds);
+				const profileById = new Map((creatorProfiles ?? []).map((p) => [p.id, p]));
+				sponsoredCreators = (sponsoredRows ?? [])
+					.map((r: any) => ({ ...r, profile: profileById.get(r.creator_id) }))
+					.filter((r: any) => r.profile);
+			}
+		}
 
 		// Showcase (dual-consent public roster of represented creators) — manager/agency orgs only.
 		// "My represented creators" is scoped to the CALLER's own manager_creator_links, not the whole
@@ -66,5 +107,14 @@ export const load: PageServerLoad = async ({ locals: { safeGetSession, supabase 
 		}
 	}
 
-	return { profile, memberships, roster, myRepresentedCreators, showcased };
+	return {
+		profile,
+		memberships,
+		roster,
+		myRepresentedCreators,
+		showcased,
+		inviteTokens,
+		advertiserStats,
+		sponsoredCreators
+	};
 };

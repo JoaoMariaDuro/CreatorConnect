@@ -46,22 +46,51 @@
 		await invalidateAll();
 	}
 
-	// Invite a member
-	let inviteEmail = $state('');
+	// Create an invite link — superseded from invite_org_member_by_email (which required the invitee
+	// to already have a matching-role account) to a token link that works for people who don't have an
+	// account yet, riding the normal signup flow (see /invite/[token] and rpc-org-invites.sql).
+	let inviteTargetEmail = $state('');
 	let inviting = $state(false);
 	let inviteErr = $state('');
+	let lastInviteUrl = $state('');
+	let copied = $state(false);
 
-	async function invite() {
-		if (!supabase || !activeMembership || !inviteEmail.trim()) return;
+	async function createInviteLink() {
+		if (!supabase || !activeMembership) return;
 		inviting = true;
 		inviteErr = '';
-		const { error } = await supabase.rpc('invite_org_member_by_email', {
+		lastInviteUrl = '';
+		const { data: token, error } = await supabase.rpc('create_org_invite_token', {
 			p_org_id: activeMembership.org.id,
-			p_email: inviteEmail.trim()
+			p_target_email: inviteTargetEmail.trim() || null
 		});
 		inviting = false;
 		if (error) { inviteErr = error.message; return; }
-		inviteEmail = '';
+		lastInviteUrl = `${page.url.origin}/invite/${token.token}`;
+		inviteTargetEmail = '';
+		await invalidateAll();
+	}
+
+	async function copyInviteUrl() {
+		await navigator.clipboard.writeText(lastInviteUrl);
+		copied = true;
+		setTimeout(() => (copied = false), 1500);
+	}
+
+	function inviteStatus(t: any) {
+		if (t.revoked_at) return 'revoked';
+		if (t.use_count >= t.max_uses) return 'used';
+		if (new Date(t.expires_at) < new Date()) return 'expired';
+		return 'active';
+	}
+
+	let revokingTokenId = $state<string | null>(null);
+
+	async function revokeInviteToken(tokenId: string) {
+		if (!supabase) return;
+		revokingTokenId = tokenId;
+		await supabase.rpc('revoke_org_invite_token', { p_token_id: tokenId });
+		revokingTokenId = null;
 		await invalidateAll();
 	}
 
@@ -157,15 +186,50 @@
 			{#if isOwner}
 				<div class="card" style="margin-top:16px;">
 					<h3 style="margin-top:0;">Invite a member</h3>
+					<p class="muted" style="font-size:13px; margin-top:0;">
+						Create a link and send it to anyone — they don't need a CreatorConnect account yet. It
+						locks them to a {profile.role === 'advertiser' ? 'an advertiser' : 'a manager'} account and
+						joins them to this org automatically.
+					</p>
 					<div class="field">
-						<label for="invite-email">Their email</label>
-						<input id="invite-email" type="email" bind:value={inviteEmail} placeholder="coworker@org.com" />
-						<span class="hint">They must already have a CreatorConnect account registered as {profile.role === 'advertiser' ? 'an advertiser' : 'a manager'}.</span>
+						<label for="invite-email">Label (optional)</label>
+						<input id="invite-email" type="email" bind:value={inviteTargetEmail} placeholder="coworker@org.com" />
+						<span class="hint">Just a reminder of who this link is for — not enforced at signup.</span>
 					</div>
 					{#if inviteErr}<p class="warn">{inviteErr}</p>{/if}
-					<button class="btn btn-primary" onclick={invite} disabled={!inviteEmail.trim() || inviting}>
-						{inviting ? 'Sending…' : 'Send invite'}
+					<button class="btn btn-primary" onclick={createInviteLink} disabled={inviting}>
+						{inviting ? 'Creating…' : 'Create invite link'}
 					</button>
+					{#if lastInviteUrl}
+						<div class="row" style="margin-top:10px; gap:8px; align-items:center;">
+							<input readonly value={lastInviteUrl} style="flex:1; font-size:12px;" onclick={(e) => (e.target as HTMLInputElement).select()} />
+							<button class="btn btn-sm" onclick={copyInviteUrl}>{copied ? 'Copied!' : 'Copy'}</button>
+						</div>
+					{/if}
+
+					{#if data.inviteTokens?.length}
+						<div class="section-title" style="margin-top:16px;">Invite links</div>
+						<div class="stack">
+							{#each data.inviteTokens as t (t.id)}
+								{@const status = inviteStatus(t)}
+								<div class="card">
+									<div class="row" style="justify-content: space-between;">
+										<div>
+											<strong style="font-size:13px;">{t.target_email || 'Unlabeled link'}</strong>
+											<span class="badge" style="margin-left:8px; background:var(--panel-raised); color:var(--text-muted);">
+												{status}
+											</span>
+										</div>
+										{#if status === 'active'}
+											<button class="btn btn-sm" style="color:var(--red);" onclick={() => revokeInviteToken(t.id)} disabled={revokingTokenId === t.id}>
+												{revokingTokenId === t.id ? 'Revoking…' : 'Revoke'}
+											</button>
+										{/if}
+									</div>
+								</div>
+							{/each}
+						</div>
+					{/if}
 				</div>
 			{/if}
 
@@ -188,6 +252,49 @@
 					</div>
 				{/each}
 			</div>
+
+			{#if activeMembership.org.org_type === 'advertiser' && isOwner && data.advertiserStats}
+				<div class="section-title">Analytics</div>
+				<div class="grid">
+					<div class="card">
+						<div class="muted" style="font-size:13px;">Deals (active / completed)</div>
+						<div style="font-size:22px; font-weight:600; margin-top:4px;">
+							{data.advertiserStats.active_deals} / {data.advertiserStats.completed_deals}
+						</div>
+					</div>
+					<div class="card">
+						<div class="muted" style="font-size:13px;">Total spend</div>
+						<div style="font-size:22px; font-weight:600; margin-top:4px;">
+							${(data.advertiserStats.total_spend_cents / 100).toLocaleString()}
+						</div>
+					</div>
+					<div class="card">
+						<div class="muted" style="font-size:13px;">Creators worked with</div>
+						<div style="font-size:22px; font-weight:600; margin-top:4px;">{data.advertiserStats.unique_creators}</div>
+					</div>
+				</div>
+
+				<div class="section-title">Creators sponsored</div>
+				{#if data.sponsoredCreators?.length}
+					<div class="stack">
+						{#each data.sponsoredCreators as s (s.creator_id)}
+							<div class="card">
+								<div class="row" style="justify-content: space-between;">
+									<div>
+										<strong>{s.profile?.display_name}</strong>
+										<span class="badge" style="margin-left:8px; background:var(--panel-raised); color:var(--text-muted);">
+											{s.deal_count} deal{s.deal_count === 1 ? '' : 's'}
+										</span>
+									</div>
+									<span class="muted" style="font-size:13px;">${(s.total_spend_cents / 100).toLocaleString()}</span>
+								</div>
+							</div>
+						{/each}
+					</div>
+				{:else}
+					<p class="muted" style="font-size:13px;">No completed deals yet across this org's members.</p>
+				{/if}
+			{/if}
 
 			{#if activeMembership.org.org_type === 'manager'}
 				<div class="section-title">Represented creators (public showcase)</div>

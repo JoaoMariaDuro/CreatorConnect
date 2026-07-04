@@ -4,7 +4,19 @@
 
 	let { data } = $props();
 	let email = $state('');
-	let role = $state<'creator' | 'advertiser' | 'manager'>('creator');
+
+	// A ?role= param (set by /invite/[token]'s sign-in CTA) locks the dropdown to what the invite
+	// requires — server-side enforcement is still accept_org_invite_token()'s own role check, this is
+	// just UX so the visitor doesn't pick the wrong role and get rejected after confirming their email.
+	const lockedRole = page.url.searchParams.get('role');
+	let role = $state<'creator' | 'advertiser' | 'manager'>(
+		lockedRole === 'advertiser' || lockedRole === 'manager' || lockedRole === 'creator'
+			? lockedRole
+			: 'creator'
+	);
+	const inviteToken = page.url.searchParams.get('invite_token');
+	const nextParam = page.url.searchParams.get('next');
+
 	let displayName = $state('');
 	let sent = $state(false);
 	let loading = $state(false);
@@ -59,11 +71,17 @@
 			return;
 		}
 		loading = true;
+		const confirmUrl = new URL(`${page.url.origin}/auth/confirm`);
+		if (nextParam) confirmUrl.searchParams.set('next', nextParam);
 		const { error } = await data.supabase.auth.signInWithOtp({
 			email: email.trim(),
 			options: {
-				emailRedirectTo: `${page.url.origin}/auth/confirm`,
-				data: { role, display_name: displayName.trim() }
+				emailRedirectTo: confirmUrl.toString(),
+				data: {
+					role,
+					display_name: displayName.trim(),
+					...(inviteToken ? { invite_token: inviteToken } : {})
+				}
 			}
 		});
 		loading = false;
@@ -89,7 +107,9 @@
 			</p>
 			<button class="ghost" onclick={() => (sent = false)}>Use a different email</button>
 		{:else}
-			{#if pkSupported}
+			<!-- Passkey signup carries no metadata at all, so an invite_token would be silently lost — hide it
+			     for invite links and route through the magic-link form, which does carry it. -->
+			{#if pkSupported && !inviteToken}
 				<button class="btn btn-primary" style="width:100%; justify-content:center; margin-bottom:12px;" onclick={signInWithPasskey} disabled={pkLoading}>
 					{pkLoading ? 'Waiting for passkey…' : 'Sign in with a passkey'}
 				</button>
@@ -108,12 +128,16 @@
 				</div>
 				<div class="field">
 					<label for="role">I am a...</label>
-					<select id="role" bind:value={role}>
+					<select id="role" bind:value={role} disabled={!!lockedRole}>
 						<option value="creator">Creator</option>
 						<option value="advertiser">Advertiser</option>
 						<option value="manager">Manager / Agency</option>
 					</select>
-					<span class="muted">Only used if this is your first sign-in.</span>
+					<span class="muted">
+						{lockedRole
+							? "Locked by your invite link — this org only accepts this role."
+							: 'Only used if this is your first sign-in.'}
+					</span>
 				</div>
 				{#if err}<p class="warn">{err}</p>{/if}
 				<button class="btn btn-primary" type="submit" disabled={loading}>

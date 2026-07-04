@@ -95,15 +95,34 @@ create or replace view public.public_profiles as
 -- (set by the client at signup: supabase.auth.signUp({ options: { data: { role, display_name } } })).
 -- If role is missing/invalid the insert fails loudly rather than silently defaulting — signup UI must
 -- always pass a role.
+--
+-- Every advertiser always has an org context (no "solo, no org" state for that role, unlike
+-- managers) — see rpc-advertiser-auto-org.sql for ensure_advertiser_org(). Skipped when
+-- invite_token is present in metadata: a brand-new advertiser signing up specifically to accept
+-- someone else's invite must NOT get a throwaway solo org created microseconds before
+-- accept_org_invite_token runs, or that RPC's own "already belongs to a different org" guard would
+-- incorrectly block the very invite it's supposed to let through. Run-order note: this function
+-- references ensure_advertiser_org, which doesn't exist until rpc-advertiser-auto-org.sql runs —
+-- Postgres doesn't validate plpgsql body identifiers until first execution, so re-running
+-- schema.sql itself won't error, but it must be re-run LAST (after
+-- orgs.sql/rpc-orgs.sql/rpc-advertiser-auto-org.sql) so the trigger's call target exists before the
+-- next real signup fires it.
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_role text;
+  v_display_name text;
 begin
+  v_role := new.raw_user_meta_data ->> 'role';
+  v_display_name := coalesce(new.raw_user_meta_data ->> 'display_name', split_part(new.email, '@', 1));
+
   insert into public.profiles (id, role, display_name)
-  values (
-    new.id,
-    new.raw_user_meta_data ->> 'role',
-    coalesce(new.raw_user_meta_data ->> 'display_name', split_part(new.email, '@', 1))
-  );
+  values (new.id, v_role, v_display_name);
+
+  if v_role = 'advertiser' and (new.raw_user_meta_data ->> 'invite_token') is null then
+    perform public.ensure_advertiser_org(new.id, v_display_name);
+  end if;
+
   return new;
 end $$;
 

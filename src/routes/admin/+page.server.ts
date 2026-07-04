@@ -22,7 +22,8 @@ export const load: PageServerLoad = async ({ locals: { supabase } }) => {
 		{ count: activeDeals },
 		{ count: completedDeals },
 		{ count: feedbackCount },
-		{ count: issueCount }
+		{ count: issueCount },
+		{ count: totalOrgs }
 	] = await Promise.all([
 		supabase.from('deals').select('id', { count: 'exact', head: true }).eq('status', 'disputed'),
 		supabase.from('public_profiles').select('id', { count: 'exact', head: true }).eq('role', 'creator'),
@@ -32,7 +33,10 @@ export const load: PageServerLoad = async ({ locals: { supabase } }) => {
 		supabase.from('deals').select('id', { count: 'exact', head: true }).in('status', ['active', 'delivered']),
 		supabase.from('deals').select('id', { count: 'exact', head: true }).eq('status', 'completed'),
 		supabase.from('feedback').select('id', { count: 'exact', head: true }),
-		supabase.from('feedback').select('id', { count: 'exact', head: true }).eq('kind', 'issue')
+		supabase.from('feedback').select('id', { count: 'exact', head: true }).eq('kind', 'issue'),
+		// Counts against the base `orgs` table, not a public_* view — fix-org-admin-access.sql grants
+		// is_platform_admin() a full read bypass on its RLS, same as deals/feedback above.
+		supabase.from('orgs').select('id', { count: 'exact', head: true })
 	]);
 
 	return {
@@ -45,7 +49,8 @@ export const load: PageServerLoad = async ({ locals: { supabase } }) => {
 			activeDeals: activeDeals ?? 0,
 			completedDeals: completedDeals ?? 0,
 			feedbackCount: feedbackCount ?? 0,
-			issueCount: issueCount ?? 0
+			issueCount: issueCount ?? 0,
+			totalOrgs: totalOrgs ?? 0
 		}
 	};
 };

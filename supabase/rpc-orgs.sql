@@ -80,6 +80,11 @@ exception
     raise exception 'that org handle is already taken';
 end $$;
 
+-- Superseded by the invite-link flow (org-invites.sql / rpc-org-invites.sql) — that flow works for
+-- people who don't have an account yet, which is the founder's actual ask, while this one only ever
+-- worked for an email already tied to a matching-role account. Kept defined (not dropped) for a
+-- clean rollback path; settings/org/+page.svelte no longer calls it.
+--
 -- Invite an advertiser or manager to join an existing org by email. Security definer for the same
 -- reason invite_manager_by_email() is: email lives on auth.users, which no client-side policy can
 -- read, and profiles has no email column by design. This performs exactly the insert an active

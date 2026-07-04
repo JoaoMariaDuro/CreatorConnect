@@ -41,6 +41,12 @@
 				<strong>Audit Log</strong>
 				<div class="muted" style="font-size:13px; margin-top:4px;">Every delegated/state-changing action, platform-wide</div>
 			</a>
+			<a class="card admin-link" href="/admin/orgs">
+				<strong>Orgs</strong>
+				<div class="muted" style="font-size:13px; margin-top:4px;">
+					{c.totalOrgs} org{c.totalOrgs === 1 ? '' : 's'}
+				</div>
+			</a>
 		</div>
 	{:else}
 		<div class="empty">Loading…</div>

@@ -23,6 +23,15 @@
 	--topbar-h: 52px;
 	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
 	color-scheme: dark;
+
+	/* Marketing-page scale: a wider type/space ramp than the dashboard's utility classes need,
+	   used by the public homepage and roadmap (src/routes/(marketing)) so long-form persuasive
+	   copy gets real hierarchy instead of reusing .section-title/.card sizing meant for dense
+	   internal UI. Kept as tokens (not one-off inline styles) so the two pages stay consistent
+	   with each other. */
+	--mkt-radius-lg: 18px;
+	--mkt-space-section: 120px;
+	--mkt-space-section-sm: 72px;
 }
 
 /* Print support (first use: /deal/[id]'s "Print / Save as PDF" button on the contract card). Since

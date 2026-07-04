@@ -133,11 +133,17 @@ returns boolean language sql stable security definer set search_path = public as
 $$;
 
 -- ===== orgs RLS =====
+-- Every policy below also grants `is_platform_admin()` full access, powering /admin/orgs (founder
+-- page to view/manage every org, e.g. for support requests) — same `or public.is_platform_admin()`
+-- bypass convention already used on deals/audit_log/feedback (schema.sql, deals.sql, delegation.sql,
+-- feedback.sql). This is read/admin-support access only, not a new authority tier: admin still can't
+-- change org_type (the with-check subquery locks it regardless of caller), and create_org_as_admin()
+-- (rpc-admin-orgs.sql) is a separate security-definer RPC, not a new insert policy.
 
 drop policy if exists "active members read own org" on public.orgs;
 create policy "active members read own org" on public.orgs
   for select
-  using (public.is_active_org_member(id));
+  using (public.is_active_org_member(id) or public.is_platform_admin());
 
 -- No insert policy at all — only create_org() (security definer RPC, rpc-orgs.sql) inserts into
 -- orgs. Without this restriction, an org could be created via a plain client insert with no
@@ -151,9 +157,9 @@ create policy "active members read own org" on public.orgs
 drop policy if exists "owner updates own org" on public.orgs;
 create policy "owner updates own org" on public.orgs
   for update
-  using (public.is_active_org_owner(id))
+  using (public.is_active_org_owner(id) or public.is_platform_admin())
   with check (
-    public.is_active_org_owner(id)
+    (public.is_active_org_owner(id) or public.is_platform_admin())
     and org_type = (select o.org_type from public.orgs o where o.id = orgs.id)
   );
 
@@ -169,7 +175,7 @@ create policy "owner updates own org" on public.orgs
 drop policy if exists "active members read own roster" on public.org_members;
 create policy "active members read own roster" on public.org_members
   for select
-  using (public.is_active_org_member(org_id) or user_id = auth.uid());
+  using (public.is_active_org_member(org_id) or user_id = auth.uid() or public.is_platform_admin());
 
 -- Only an active owner can insert rows directly — defense in depth, not the primary write path.
 -- invite_org_member_by_email() (rpc-orgs.sql) is the real way invites get created, since resolving
@@ -188,8 +194,22 @@ create policy "owner inserts members" on public.org_members
 drop policy if exists "owner manages member rows" on public.org_members;
 create policy "owner manages member rows" on public.org_members
   for update
-  using (public.is_active_org_owner(org_id))
-  with check (public.is_active_org_owner(org_id));
+  using (public.is_active_org_owner(org_id) or public.is_platform_admin())
+  with check (public.is_active_org_owner(org_id) or public.is_platform_admin());
+
+-- A member can leave on their own — update their own row to status='revoked' only. Without this, only
+-- an owner could remove a member, leaving no self-service way to leave. This matters more now that
+-- accept_org_invite_token() (rpc-org-invites.sql) blocks accepting an invite while already active in a
+-- DIFFERENT org — a member who wants to switch orgs needs a way to remove themselves first. Mirrors
+-- org_showcased_creators' "member retracts a showcase, can never grant 'accepted'" pattern: the
+-- with-check pins the target status to exactly 'revoked', so this can never be (ab)used to
+-- self-promote to owner or reactivate a revoked row. No new recursion risk — still gated by
+-- `user_id = auth.uid()` directly, not a function that queries org_members again.
+drop policy if exists "member leaves own org" on public.org_members;
+create policy "member leaves own org" on public.org_members
+  for update
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid() and status = 'revoked');
 
 -- No delete policy — revocation is a status update ('revoked'), never a row delete, so the roster
 -- keeps full history (same "revoked, not deleted" pattern as manager_creator_links). A re-invite

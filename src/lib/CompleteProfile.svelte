@@ -23,6 +23,12 @@
 			err = error.message;
 			return;
 		}
+		if (role === 'advertiser') {
+			// Best-effort: this path (passkey signup with no metadata) has no invite-token concept, so
+			// every advertiser landing here is a solo signup and always gets a self-org. Swallow errors
+			// so a hiccup here never blocks onboarding — worst case, the backfill script catches it later.
+			await supabase.rpc('ensure_advertiser_org_self');
+		}
 		await invalidateAll();
 	}
 </script>

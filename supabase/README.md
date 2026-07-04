@@ -114,6 +114,54 @@ that order — the helper function is defined in the first file and used by the 
     itself so that file's own `drop table ... cascade` at the top doesn't force you to destroy and
     recreate any org you've already made just to pick up this fix.
 
+23. [`rpc-advertiser-auto-org.sql`](./rpc-advertiser-auto-org.sql) — `ensure_advertiser_org`,
+    `ensure_advertiser_org_self`. Every advertiser always has an org context (no "solo, no org"
+    state for that role, unlike managers) — a solo advertiser automatically becomes the sole owner
+    of their own org, invisibly, at signup. Depends on `orgs.sql` (step 13) and `rpc-orgs.sql`
+    (step 14).
+24. **Re-run [`schema.sql`](./schema.sql) again, now, after step 23** — its `handle_new_user()`
+    trigger was updated to call `ensure_advertiser_org()` for new advertiser signups (skipped when
+    `invite_token` is present in signup metadata, so a signup made specifically to accept an invite
+    doesn't also get a throwaway solo org first). This is a genuine run-order requirement, not just
+    "safe to re-run": Postgres doesn't validate a plpgsql function body's identifiers until first
+    execution, so running `schema.sql` before step 23 won't error — but the trigger's call target
+    must exist before the next real signup fires it, so re-run `schema.sql` LAST, after
+    `orgs.sql`/`rpc-orgs.sql`/`rpc-advertiser-auto-org.sql`. Same "re-run it, it's idempotent"
+    pattern already used for the `bio` column fix below.
+25. [`fix-advertiser-org-backfill.sql`](./fix-advertiser-org-backfill.sql) — one-time backfill: gives
+    every existing advertiser profile with no org an auto-created self-org, covering accounts created
+    before step 23 shipped. Safe to re-run — `ensure_advertiser_org()` no-ops for anyone who already
+    has an org. Run once, after step 24.
+26. [`org-invites.sql`](./org-invites.sql) — `org_invite_tokens`: token-based invite links, letting
+    an org owner invite someone who doesn't have a CreatorConnect account yet (unlike
+    `invite_org_member_by_email`, which requires the invitee to already exist). Owner-only read RLS;
+    no insert/update/delete policy at all — every write goes through the RPCs in the next file.
+    Depends on `orgs.sql` (step 13).
+27. [`rpc-org-invites.sql`](./rpc-org-invites.sql) — `create_org_invite_token` (owner-only),
+    `get_org_invite_info` (anon-safe lookup — explicitly `grant execute ... to anon`, since
+    `/invite/[token]` renders before the visitor has an account), `accept_org_invite_token`,
+    `revoke_org_invite_token`. Must run after `org-invites.sql` (step 26).
+28. [`fix-org-member-self-leave.sql`](./fix-org-member-self-leave.sql) — adds a "member can leave
+    their own org" RLS policy on `org_members` (an owner could always revoke a member; there was no
+    self-service way for a member to leave on their own). This is now already in `orgs.sql`'s source
+    too, for a fresh install — **but if you already ran `orgs.sql` and have a real org, run this file
+    instead of re-running `orgs.sql`**, for the same reason as step 22: `orgs.sql`'s own
+    `drop table ... cascade` at the top would destroy the org you already made. This file only adds
+    the one policy, touching no table or existing data.
+
+29. [`fix-org-admin-access.sql`](./fix-org-admin-access.sql) — grants `is_platform_admin()` a full
+    read/manage bypass on `orgs`/`org_members` RLS, powering `/admin/orgs` (the founder's page to
+    view/manage every org). This is now already in `orgs.sql`'s source too, for a fresh install —
+    **but if you already ran `orgs.sql` and have a real org, run this file instead of re-running
+    `orgs.sql`**, for the same "don't trigger the drop cascade" reason as steps 22 and 28.
+30. [`rpc-admin-orgs.sql`](./rpc-admin-orgs.sql) — `create_org_as_admin`: lets an admin create an org
+    on behalf of an existing account (resolved by email), for `/admin/orgs`'s "create an org" form.
+    Depends on `orgs.sql` (step 13) and `schema.sql`'s `is_platform_admin()`.
+31. [`rpc-org-advertiser-stats.sql`](./rpc-org-advertiser-stats.sql) — `get_org_advertiser_stats`,
+    `get_org_sponsored_creators`: owner-only, aggregate-only analytics for advertiser orgs (deal
+    counts/spend/unique creators across every active member's deals), powering the new "Analytics"
+    section on `/settings/org`. Depends on `orgs.sql` (step 13) and `deals.sql`.
+
 **Note on `schema.sql`'s `public_profiles` view**: this session widened it to also expose `bio`
 (needed by `/u/[handle]`, the new advertiser/manager individual profile page — see the view's own
 comment). If your project already ran `schema.sql` once, re-run it — `create or replace view` is
